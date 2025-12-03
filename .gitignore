@@ -1,0 +1,30 @@
+# Node modules
+/node_modules/
+
+# Build output
+/dist/
+/build/
+
+# Environment variables
+.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+/coverage/
+
+# WebStorm project files
+/.idea/
+/.idea/workspace.xml
+
+# Editor-based HTTP Client requests
+/httpRequests/
+
+# Datasource local storage ignored files
+/dataSources/
+/dataSources.local.xml
+
+# Default ignored files
+/shelf/
