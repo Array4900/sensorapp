@@ -13,7 +13,7 @@ COPY package*.json ./
 RUN npm install
 
 # Skopíruj zvyšok projektu
-COPY . .
+COPY .. .
 
 # Port na ktorom beží backend
 EXPOSE 5000

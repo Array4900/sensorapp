@@ -1,35 +1,61 @@
-# Dependencies
-/node_modules/
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.tgz
 
 # Build output
-/dist/
-/build/
+dist/
+build/
+lib/
+.out/
 
-# Environment variables
+# TypeScript
+*.tsbuildinfo
+
+# Svelte / Vite / SvelteKit
+.svelte-kit/
+.vite/
+.output/
+public/build/
+
+# Caches
+.cache/
+.cache-loader/
+coverage/
+coverage-final.json
+
+# Environment files
 .env
-.env.local
-.env.*.local
+.env.*
 
 # Logs
+logs/
 *.log
-npm-debug.log*
 
-# Test coverage
-/coverage/
+# Docker
+docker-compose.override.yml
+docker-compose.*.local.yml
 
-# WebStorm project files
-/.idea/
-/.idea/workspace.xml
+# IDEs and editors
+.idea/
+.vscode/
+*.iml
 
-# Editor-based HTTP Client requests
-/httpRequests/
+# Operating system files
+.DS_Store
+Thumbs.db
 
-# Datasource local storage ignored files
-/dataSources/
-/dataSources.local.xml
+# Others
+pids/
+*.pid
+*.seed
 
-# Default ignored files
-/shelf/
+# Ignore local frontend/backends node_modules in any subfolder
+**/node_modules/
 
-# vlastne txt subory
-executedCommands.txt
+# Ignore local lockfile caches (optional)
+# .npm/
+
