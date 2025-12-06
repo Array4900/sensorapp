@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-export async function connectDB() {
+export async function connectToDatabase() {
     try {
         await mongoose.connect(process.env.MONGO_URI as string);
         console.log("Podarilo sa pripojiť k MONGODB");
