@@ -21,4 +21,4 @@ EXPOSE 5000
 # ENTRYPOINT ["top", "-b"]
 
 # Štart aplikácie
-CMD ["npm", "run", "start"]
+CMD ["npm","run","build", "&&","npm", "run", "dev"]

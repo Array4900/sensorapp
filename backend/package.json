@@ -4,15 +4,16 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "../node_modules/.bin/nodemon --exec ts-node backend/src/server.ts",
-    "build": "../node_modules/.bin/tsc",
+    "serve": "node src/server.ts",
+    "dev": "nodemon ./dist/server.js",
     "start": "node dist/server.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",

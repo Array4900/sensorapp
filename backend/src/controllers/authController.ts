@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
-import { v4 as uuidv4 } from "uuid";
-import User from "../models/User";
-import { UserRole } from "../utils/roleEnum";
+
+import User from "../models/User.js";
+import { UserRole } from "../utils/roleEnum.js";
 
 export const registerUser = async (req: Request, res: Response) => {
     try {
@@ -14,7 +14,6 @@ export const registerUser = async (req: Request, res: Response) => {
             });
         }
 
-
         // Pozri, či užívateľské meno nie je obsadené
         const usernameExists = await User.findOne({ username });
         if (usernameExists) {
@@ -25,7 +24,6 @@ export const registerUser = async (req: Request, res: Response) => {
 
         // Vytvor objekt nového užívateľa
         const newUser = new User({
-            uid: uuidv4(),
             username,
             password,           // heslo sa zahashuje v User modeli pomocou hooku 'pre save'
             role: role || UserRole.USER // defaultná rola je USER
@@ -37,7 +35,6 @@ export const registerUser = async (req: Request, res: Response) => {
         return res.status(201).json({
             message: "User created successfully.",
             user: {
-                uid: newUser.uid,
                 username: newUser.username,
                 role: newUser.role
             }

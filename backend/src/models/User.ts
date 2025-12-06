@@ -1,13 +1,8 @@
 import mongoose from "mongoose";
-import { UserRole } from "../utils/roleEnum";
+import { UserRole } from "../utils/roleEnum.js";
 
 const userSchema = new mongoose.Schema(
     {
-        uid: {
-            type: String,
-            required: true,
-            unique: true,
-        },
         username: {
             type: String,
             required: true,
@@ -36,3 +31,8 @@ userSchema.pre("save", async function (next) {
     this.password = await bcrypt.hash(this.password, 10);
     next();
 });
+
+userSchema.methods.comparePassword = async function (candidatePassword: string) {
+    const bcrypt = await import("bcrypt");
+    return bcrypt.compare(candidatePassword, this.password);
+}
