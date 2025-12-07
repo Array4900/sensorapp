@@ -1,5 +1,6 @@
 <script lang="ts">
-  import './register.css';
+  import '../../static/registerForm.css';
+  import { goto } from '$app/navigation';
 
   let username: string = '';
   let password: string = '';
@@ -47,18 +48,30 @@
 
     submitMessage = 'Čoskoro budete presmerovaní na prihlasovaciu stránku...';
 
-    // Placeholder: send to backend (uncomment and adapt when backend endpoint exists)
-    // try {
-    //   const res = await fetch('/api/auth/register', {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify({ username, password })
-    //   });
-    //   const data = await res.json();
-    //   console.log('server response', data);
-    // } catch (err) {
-    //   console.error(err);
-    // }
+try {
+      console.log(JSON.stringify({ username, password }));
+      const res = await fetch('http://localhost:5000/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null);
+        submitMessage = errBody?.message ?? 'Registrácia zlyhala. Skúste to znova.';
+        return;
+      }
+
+      const data = await res.json().catch(() => null);
+      console.log('server response', data);
+      submitMessage = 'Registrácia úspešná — čoskoro budete presmerovaní na prihlasovaciu stránku...';
+        setTimeout(() => {
+            goto('/login');
+        }, 2000);
+    } catch (err) {
+      console.error(err);
+      submitMessage = 'Chyba pri komunikácii so serverom. Skúste znova neskôr.';
+    }
 
     console.log({ username, password });
   }
@@ -130,6 +143,8 @@
         />
       </div>
 
+        <p>Už máš vytvorený účet?</p>
+        <a href="/login" on:click|preventDefault={() => goto('/login')}>prihlás sa</a>
       <button type="submit" class="submit-btn">Registrovať</button>
 
       {#if submitMessage && !(usernameError || passwordError || confirmError)}

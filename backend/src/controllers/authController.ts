@@ -47,3 +47,47 @@ export const registerUser = async (req: Request, res: Response) => {
         });
     }
 };
+
+export const loginUser = async (req: Request, res: Response) => {
+    try {
+        const { username, password } = req.body;
+
+        if (!username || !password) {
+            return res.status(400).json({
+                message: "Musíš vyplniť všetky povinné polia (Používateľské meno, heslo)."
+            });
+        }
+
+        // nájdi užívateľa v DB podľa username
+        // TU JE READ
+        const user = await User.findOne({ username });
+        if (!user) {
+            return res.status(401).json({
+                message: "Neplatné prihlasovacie údaje."
+            });
+        }
+
+        // over heslo
+        const isPasswordValid = await User.schema.methods.comparePassword(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({
+                message: "Neplatné prihlasovacie údaje."
+            });
+        }
+
+        // úspešné prihlásenie
+        return res.status(200).json({
+            message: "Login successful.",
+            user: {
+                username: user.username,
+                role: user.role
+            }
+        });
+
+    } catch (err) {
+        console.error("Prihlásenie zlyhalo.", err);
+        return res.status(500).json({
+            message: "Internal server error."
+        });
+    }
+};

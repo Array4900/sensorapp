@@ -6,4 +6,4 @@ npx tsc --init
 
 // backend
 npm install uuid
-npm instal bcrypt
+npm install bcrypt
