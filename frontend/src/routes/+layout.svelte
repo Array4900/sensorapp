@@ -24,8 +24,8 @@
 </main>
 
 <footer>
-    <p>© 2025 Sensor App</p>
+    <p>Autor: Maroš Cifra</p>
 </footer>
 
 <!-- Import layout CSS -->
-<link rel="stylesheet" href="src/static/layout.css">
+<link rel="stylesheet" href="src/static/main.css"/>

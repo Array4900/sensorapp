@@ -1,0 +1,365 @@
+/* Main CSS file with at least 10 non-trivial rules */
+
+/* 1. Root variables for consistent theming */
+:root {
+    --primary-color: #4361ee;
+    --secondary-color: #3a0ca3;
+    --accent-color: #7209b7;
+    --text-color: #333;
+    --light-bg: #f8f9fa;
+    --dark-bg: #212529;
+    --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --transition: all 0.3s ease;
+    --border-radius: 8px;
+}
+
+/* 2. Reset and base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background-color: var(--light-bg);
+    color: var(--text-color);
+    min-height: 100vh;
+}
+
+/* 3. Navbar container */
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 250px;
+    background: linear-gradient(180deg, var(--primary-color), var(--secondary-color));
+    box-shadow: var(--shadow);
+    transform: translateX(-200px);
+    transition: var(--transition);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 4. Navbar expanded state */
+.navbar.expanded {
+    transform: translateX(0);
+}
+
+/* 5. Burger button styles */
+.burger-btn {
+    position: absolute;
+    top: 20px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 10px;
+    transition: var(--transition);
+    border-radius: 4px;
+}
+
+/* 6. Burger button hover effect */
+.burger-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: rotate(90deg);
+}
+
+/* 7. Navigation buttons container */
+.nav-buttons {
+    margin-top: 60px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 20px;
+}
+
+/* 8. Navigation button styles */
+.nav-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid transparent;
+    color: white;
+    padding: 15px 20px;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: var(--transition);
+    text-align: left;
+    font-size: 16px;
+    font-weight: 500;
+    backdrop-filter: blur(10px);
+}
+
+/* 9. Navigation button hover effect */
+.nav-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateX(10px);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* 10. Active navigation button */
+.nav-btn.active {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: white;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+}
+
+/* 11. Main content area */
+.main-content {
+    margin-left: 50px;
+    padding: 20px;
+    transition: var(--transition);
+    min-height: 100vh;
+}
+
+/* 12. Content shift when navbar expanded */
+.main-content.shifted {
+    margin-left: 250px;
+}
+
+/* 13. Page content styles */
+.page-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px;
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    animation: fadeIn 0.5s ease;
+}
+
+/* 14. Fade in animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 15. Form input styles */
+.form-input {
+    width: 100%;
+    padding: 12px 15px;
+    margin: 10px 0;
+    border: 2px solid #e0e0e0;
+    border-radius: var(--border-radius);
+    font-size: 16px;
+    transition: var(--transition);
+}
+
+/* 16. Form input focus effect */
+.form-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+}
+
+/* 17. Button styles */
+.btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    transition: var(--transition);
+    margin: 5px;
+}
+
+/* 18. Primary button */
+.btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* 19. Button hover effects */
+.btn-primary:hover {
+    background-color: var(--secondary-color);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 20. Danger button */
+.btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
+
+/* 21. Danger button hover */
+.btn-danger:hover {
+    background-color: #c82333;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(220, 53, 69, 0.2);
+}
+
+/* 22. Success button */
+.btn-success {
+    background-color: #28a745;
+    color: white;
+}
+
+/* 23. Success button hover */
+.btn-success:hover {
+    background-color: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(40, 167, 69, 0.2);
+}
+
+/* 24. Auth tab styles */
+.auth-tab {
+    position: fixed;
+    bottom: 20px;
+    left: 0;
+    background: white;
+    padding: 15px 20px;
+    border-radius: 0 var(--border-radius) var(--border-radius) 0;
+    box-shadow: var(--shadow);
+    transform: translateX(-100%);
+    transition: var(--transition);
+    z-index: 999;
+    min-width: 200px;
+}
+
+/* 25. Auth tab visible */
+.auth-tab.visible {
+    transform: translateX(0);
+}
+
+/* 26. Welcome message */
+.welcome-message {
+    color: var(--text-color);
+    margin-bottom: 15px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* 27. Login link */
+.login-link {
+    color: var(--primary-color);
+    cursor: pointer;
+    text-decoration: none;
+    font-weight: 600;
+    transition: var(--transition);
+}
+
+/* 28. Login link hover */
+.login-link:hover {
+    color: var(--secondary-color);
+    text-decoration: underline;
+}
+
+/* 29. Action buttons container */
+.action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 15px;
+}
+
+/* 30. Responsive design */
+@media (max-width: 768px) {
+    .navbar {
+        width: 100%;
+        transform: translateX(-100%);
+    }
+
+    .navbar.expanded {
+        transform: translateX(0);
+    }
+
+    .main-content {
+        margin-left: 0;
+        padding: 70px 15px 15px;
+    }
+
+    .main-content.shifted {
+        margin-left: 0;
+    }
+
+    .auth-tab {
+        left: 50%;
+        transform: translateX(-50%) translateY(100%);
+        bottom: 0;
+        border-radius: var(--border-radius) var(--border-radius) 0 0;
+        width: 90%;
+        max-width: 400px;
+    }
+
+    .auth-tab.visible {
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+/* 31. Card styles for measurements */
+.card {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin: 15px 0;
+    box-shadow: var(--shadow);
+    transition: var(--transition);
+}
+
+/* 32. Card hover effect */
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* 33. Profile section styles */
+.profile-section {
+    padding: 30px;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    border-radius: var(--border-radius);
+    margin-bottom: 20px;
+}
+
+/* 34. Loading animation */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.loading {
+    animation: pulse 1.5s infinite;
+}
+
+/* 35. Tooltip */
+.tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip .tooltip-text {
+    visibility: hidden;
+    width: 200px;
+    background-color: var(--dark-bg);
+    color: white;
+    text-align: center;
+    border-radius: var(--border-radius);
+    padding: 10px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
