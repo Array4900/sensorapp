@@ -1,23 +1,24 @@
 import express from "express";
 import connectToDatabase from './config/db.js';
-import {loginUser, registerUser} from './controllers/authController.js';
-
 import cors from 'cors';
+import dotenv from "dotenv";
+
+import authRoutes from './routes/authRoute.js';
+import sensorRoutes from './routes/sensorRoutes.js';
+import measurementRoutes from './routes/measurementRoutes.js';
+import { config } from "dotenv";
 
 const app = express();
 app.use(cors());
 
-app.use(express.json()); // povolit pre kazdy origin
-
-// app.use(cors({
-//     origin: 'http://localhost:5173', // Svelte
-//     credentials: true
-// }));
+dotenv.config();
+console.log("Moja URI:", process.env.MONGO_URI);
+app.use(express.json());
 
 try {
     await connectToDatabase();
-    let port = 5000;
-    app.listen(port , '0.0.0.0',() => {
+    let port = parseInt(process.env.PORT as string, 10);
+    app.listen( port , '0.0.0.0',() => {
         console.log("Server running on port " + port);
     });
 } catch (error) {
@@ -25,21 +26,9 @@ try {
     process.exit(1);
 }
 
-app.post("/api/register", async (req, res) => {
-    try {
-        //const newUser = await User.create(req.body);
-        await registerUser(req, res);
-    } catch (error) {
-        res.status(400).send({ error: "Error creating user", details: error });
-    }
-});
-
-app.post("/api/login", async (req, res) => {
-    try {
-        await loginUser(req, res);
-    } catch (error) {
-        res.status(400).send({ error: "Error logging in", details: error });
-    }
-})
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/sensors', sensorRoutes);
+app.use('/api/measurements', measurementRoutes);
 
 

@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { Collection } from "mongoose";
 import { UserRole } from "../utils/roleEnum.js";
 import bcrypt from "bcrypt";
 
@@ -19,7 +19,7 @@ const userSchema = new mongoose.Schema(
             default: UserRole.USER
         }
     },
-    { timestamps: true }
+    { timestamps: true, collection: 'users' }
 );
 
 

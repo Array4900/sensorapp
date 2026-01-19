@@ -1,11 +1,12 @@
 import { Request, Response } from "express";
+import jwt from 'jsonwebtoken';
 
 import User from "../models/User.js";
 import { UserRole } from "../utils/roleEnum.js";
 
 export const registerUser = async (req: Request, res: Response) => {
     try {
-        const { username, password, role } = req.body;
+        const { username, password } = req.body;
 
         // Ak by náhodou zlyhalo overenie na frontende (používateľ je špekulant)
         if ( !username || !password) {
@@ -26,7 +27,7 @@ export const registerUser = async (req: Request, res: Response) => {
         const newUser = new User({
             username,
             password,           // heslo sa zahashuje v User modeli pomocou hooku 'pre save'
-            role: role || UserRole.USER // defaultná rola je USER
+            role: UserRole.USER // defaultná rola je USER
         });
 
         // ulož užívateľa do MONGODB
@@ -75,9 +76,18 @@ export const loginUser = async (req: Request, res: Response) => {
             });
         }
 
+        // Vygeneruj JWT token
+        const secret = process.env.JWT_SECRET || 'supersecret123';
+        const token = jwt.sign(
+            { username: user.username, role: user.role },
+            secret,
+            { expiresIn: '24h' }
+        );
+
         // úspešné prihlásenie
         return res.status(200).json({
             message: "Login successful.",
+            token: token,
             user: {
                 username: user.username,
                 role: user.role

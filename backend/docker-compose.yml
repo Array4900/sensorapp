@@ -1,15 +1,15 @@
 services:
-#  backend:
-#    build: .
-#    container_name: sensor-backend
-#    restart: unless-stopped
-#    ports:
-#      - "5000:5000"
-#    environment:
-#      - MONGO_URI=mongodb://mongo:27017/sensorapp
-#      - JWT_SECRET=supersecret123
-#    depends_on:
-#      - mongo
+  backend:
+    build: .
+    container_name: sensor-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/sensorapp
+      - JWT_SECRET=supersecret123
+    depends_on:
+      - mongo
 
   mongo:
     image: mongo
