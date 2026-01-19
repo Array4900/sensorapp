@@ -6,10 +6,9 @@ yarn-error.log*
 pnpm-debug.log*
 *.tgz
 
-# Build output
+# Build outputs
 dist/
 build/
-lib/
 .out/
 
 # TypeScript
@@ -55,7 +54,4 @@ pids/
 
 # Ignore local frontend/backends node_modules in any subfolder
 **/node_modules/
-
-# Ignore local lockfile caches (optional)
-# .npm/
 
