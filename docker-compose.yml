@@ -31,7 +31,7 @@ services:
       - "5173:5173"
     environment:
       # Pre prehliadač (klient): Volá Windows port
-      - PUBLIC_API_URL=http://localhost:5000/api
+      - PUBLIC_API_URL=http://192.168.137.1:5000/api
       # Pre SvelteKit server (SSR): Volá vnútorný Docker názov "api"
       - INTERNAL_API_URL=http://api:5000/api
     depends_on:

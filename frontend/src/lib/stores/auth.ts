@@ -12,6 +12,7 @@
 
 import { writable, derived, type Writable, type Readable } from 'svelte/store';
 import { browser } from '$app/environment';
+import { env } from '$env/dynamic/public';
 
 // ============================================
 // TYPE DEFINITIONS
@@ -73,8 +74,8 @@ interface ErrorResponse {
 // CONFIGURATION
 // ============================================
 
-/** Backend API base URL */
-const API_BASE = 'http://localhost:5000/api';
+// pouzi localhost pri neexistujucej env pre vyvoj
+const API_BASE = env.PUBLIC_API_URL || 'http://localhost:5000/api';
 
 /** LocalStorage keys */
 const STORAGE_KEYS = {

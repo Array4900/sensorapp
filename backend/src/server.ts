@@ -10,7 +10,9 @@ import adminRoutes from './routes/adminRoutes.js';
 import { config } from "dotenv";
 
 const app = express();
-app.use(cors());
+app.use(cors( {
+    origin: '*'
+}));
 
 dotenv.config();
 console.log("Moja URI:", process.env.MONGO_URI);
