@@ -130,3 +130,35 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
         return res.status(500).json({ message: "Internal server error." });
     }
 };
+
+/**
+ * Verify token - validates the JWT token is still valid
+ * Used by frontend to check if stored token is still good on page refresh
+ */
+export const verifyToken = async (req: AuthRequest, res: Response) => {
+    try {
+        // If we get here, the token was already validated by authenticateToken middleware
+        const { username, role } = req.user || {};
+        
+        if (!username) {
+            return res.status(401).json({ message: "Invalid token" });
+        }
+
+        // Optionally verify user still exists in database
+        const user = await User.findOne({ username });
+        if (!user) {
+            return res.status(401).json({ message: "User no longer exists" });
+        }
+
+        return res.status(200).json({ 
+            valid: true,
+            user: {
+                username: user.username,
+                role: user.role
+            }
+        });
+    } catch (err) {
+        console.error("Token verification failed.", err);
+        return res.status(500).json({ message: "Internal server error." });
+    }
+};

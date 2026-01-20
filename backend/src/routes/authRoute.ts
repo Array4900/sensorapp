@@ -1,5 +1,5 @@
 import express from 'express';
-import { registerUser, loginUser, changePassword } from '../controllers/authController.js';
+import { registerUser, loginUser, changePassword, verifyToken } from '../controllers/authController.js';
 import { authenticateToken } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -18,6 +18,15 @@ router.post('/login', async (req, res) => {
         await loginUser(req, res);
     } catch (error) {
         res.status(400).json({ error: 'Error logging in', details: error });
+    }
+});
+
+// verify token (used by frontend on page refresh)
+router.post('/verify', authenticateToken, async (req, res) => {
+    try {
+        await verifyToken(req, res);
+    } catch (error) {
+        res.status(400).json({ error: 'Error verifying token', details: error });
     }
 });
 

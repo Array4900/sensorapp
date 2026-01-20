@@ -391,7 +391,7 @@ export async function changePassword(
     newPassword: string
 ): Promise<{ success: boolean; message: string }> {
     try {
-        
+
         const response = await authFetch('/auth/changePassword', {
             method: 'POST',
             body: JSON.stringify({ oldPassword, newPassword })
@@ -480,13 +480,27 @@ export async function verifyToken(): Promise<boolean> {
             return false;
         }
         
+        // Update user data from server response
+        const data = await response.json();
+        if (data.user) {
+            authStore.update(state => ({
+                ...state,
+                user: data.user
+            }));
+            if (browser) {
+                localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(data.user));
+            }
+        }
+        
         authReady.set(true);
         return true;
         
     } catch (error) {
-        // Network error - keep current state but mark as ready
+        // Network error - keep current state (offline mode), mark as ready
+        // Don't log out the user just because the network is down
+        console.warn('Token verification failed due to network error, keeping cached auth state');
         authReady.set(true);
-        return false;
+        return true; // Return true to keep the user logged in with cached credentials
     }
 }
 
