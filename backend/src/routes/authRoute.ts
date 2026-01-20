@@ -1,5 +1,6 @@
 import express from 'express';
 import { registerUser, loginUser, changePassword } from '../controllers/authController.js';
+import { authenticateToken } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
@@ -21,7 +22,7 @@ router.post('/login', async (req, res) => {
 });
 
 // update
-router.post('/changePassword', async (req, res) => {
+router.post('/changePassword', authenticateToken, async (req, res) => {
     try {
         await changePassword(req, res);
     } catch (error) {

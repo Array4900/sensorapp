@@ -41,8 +41,8 @@ export const createSensor = async (req: AuthRequest, res: Response) => {
 
 export const getSensors = async (req: AuthRequest, res: Response) => {
     try {
-        // Admins see all sensors, regular users see only their own
-        const query = req.user?.role === UserRole.ADMIN 
+        // Admini vidia vsetky senzory, user len svoje
+        const query = req.user?.role === UserRole.ADMIN
             ? {} 
             : { owner: req.user?.username };
         
@@ -103,11 +103,12 @@ export const updateSensor = async (req: AuthRequest, res: Response) => {
     }
 };
 
+// odstranenie senzoru = odstranenie vsetkych jeho merani a potom samotneho senzoru
 export const deleteSensor = async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;
         
-        // First check ownership
+        // vlastnictvo overenie
         const existingSensor = await Sensor.findById(id);
         if (!existingSensor) {
             return res.status(404).json({ message: 'Sensor not found' });
@@ -117,10 +118,10 @@ export const deleteSensor = async (req: AuthRequest, res: Response) => {
             return res.status(403).json({ message: 'Access denied' });
         }
 
-        // Delete all measurements for this sensor
+        // odstran vsetky merania s id daneho senzora
         await Measurement.deleteMany({ sensor: id });
         
-        // Delete the sensor
+        // odstran samotny senzor
         await Sensor.findByIdAndDelete(id);
 
         return res.status(200).json({ message: 'Sensor and its measurements deleted successfully' });

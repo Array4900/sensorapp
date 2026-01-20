@@ -17,9 +17,9 @@ services:
     ports:
       - "5000:5000"
     environment:
-      # KĽÚČOVÉ: Backend sa k Mongo pripája cez názov služby "db"
-      - MONGO_URI=mongodb://db:27017/sensorapp
       - JWT_SECRET=${JWT_SECRET}
+      - MONGO_URI=${MONGO_URI}
+      - PORT=${PORT}
     depends_on:
       - db
 

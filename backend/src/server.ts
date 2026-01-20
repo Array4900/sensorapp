@@ -7,7 +7,6 @@ import authRoutes from './routes/authRoute.js';
 import sensorRoutes from './routes/sensorRoutes.js';
 import measurementRoutes from './routes/measurementRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
-import { config } from "dotenv";
 
 const app = express();
 app.use(cors( {
@@ -16,6 +15,8 @@ app.use(cors( {
 
 dotenv.config();
 console.log("Moja URI:", process.env.MONGO_URI);
+console.log("Moja PORT:", process.env.PORT);
+console.log("DEBUG: Používam secret:", process.env.JWT_SECRET ? "Kľúč načítaný" : "KĽÚČ CHÝBA (UNDEFINED)!");
 app.use(express.json());
 
 try {

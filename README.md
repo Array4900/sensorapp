@@ -1,7 +1,7 @@
-Dôležité: na to, aby backend fungoval treba vytvoriť .env súbor v backende, kde sa pridá sekcia:
+Dôležité: na to, aby backend fungoval treba vytvoriť .env súbor v sensorapp/, kde sa pridá sekcia:
 ```
 JWT_SECRET=<moj_tajny_kluc>
-MONGODB_URI=<moj_mongodb_uri>
+MONGODB_URI=mongodb://db:27017/sensorapp
 PORT=5000
 ```
 

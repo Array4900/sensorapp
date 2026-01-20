@@ -4,6 +4,10 @@ import jwt from 'jsonwebtoken';
 import User from "../models/User.js";
 import { UserRole } from "../utils/roleEnum.js";
 
+interface AuthRequest extends Request {
+    user?: { username: string; role: string };
+}
+
 export const registerUser = async (req: Request, res: Response) => {
     try {
         const { username, password } = req.body;
@@ -102,9 +106,10 @@ export const loginUser = async (req: Request, res: Response) => {
     }
 };
 
-export const changePassword = async (req: Request, res: Response) => {
+export const changePassword = async (req: AuthRequest, res: Response) => {
     try {
-        const { username } = req.params;
+        const { username } = req.user || {};
+        console.log("Changing password for user:", username);
         const { oldPassword, newPassword } = req.body;
         // nájdi užívateľa v DB podľa username
         const user = await User.findOne({ username });

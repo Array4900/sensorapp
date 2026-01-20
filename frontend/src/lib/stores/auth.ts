@@ -391,7 +391,8 @@ export async function changePassword(
     newPassword: string
 ): Promise<{ success: boolean; message: string }> {
     try {
-        const response = await authFetch('/auth/password', {
+        
+        const response = await authFetch('/auth/changePassword', {
             method: 'POST',
             body: JSON.stringify({ oldPassword, newPassword })
         });
