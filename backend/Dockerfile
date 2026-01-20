@@ -1,24 +1,10 @@
-# Použijeme oficiálny Node.js image
-FROM node:18
-
-LABEL authors="cifra"
-
-# Nastavíme pracovný adresár v kontajneri
+FROM node:20-alpine
 WORKDIR /app
-
-# Skopíruj package.json a package-lock.json
 COPY package*.json ./
-
-# Nainštaluj závislosti
 RUN npm install
-
-# Skopíruj zvyšok projektu
-COPY .. .
-
-# Port na ktorom beží backend
+COPY . .
+# Skompiluje TypeScript do produkčnej verzie js
+RUN npm run build
 EXPOSE 5000
-
-# ENTRYPOINT ["top", "-b"]
-
-# Štart aplikácie
-CMD ["npm","run","build", "&&","npm", "run", "dev"]
+# Spustí aplikáciu (predpokladá, že "start" je definovaný v package.json)
+CMD ["npm", "run", "start"]

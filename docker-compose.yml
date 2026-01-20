@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # 1. Databáza (Mongo)
+  db:
+    image: mongo:latest
+    container_name: sensor_db
+    ports:
+      - "27018:27017" # Prístup z Windowsu (Compass) cez 27018
+    volumes:
+      - mongo_data:/data/db
+
+  # 2. Backend (Express)
+  api:
+    build: ./backend
+    container_name: sensor_api
+    ports:
+      - "5000:5000"
+    environment:
+      # KĽÚČOVÉ: Backend sa k Mongo pripája cez názov služby "db"
+      - MONGO_URI=mongodb://db:27017/sensorapp
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      - db
+
+  # 3. Frontend (SvelteKit)
+  web:
+    build: ./frontend
+    container_name: sensor_web
+    ports:
+      - "5173:5173"
+    environment:
+      # Pre prehliadač (klient): Volá Windows port
+      - PUBLIC_API_URL=http://localhost:5000/api
+      # Pre SvelteKit server (SSR): Volá vnútorný Docker názov "api"
+      - INTERNAL_API_URL=http://api:5000/api
+    depends_on:
+      - api
+
+volumes:
+  mongo_data:
