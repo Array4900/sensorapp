@@ -310,18 +310,16 @@ export async function login(
  * 
  * @param usernameOrData - Username string or RegisterData object
  * @param password - Password (only if first param is string)
- * @param email - Optional email (only if first param is string)
  * @returns Promise resolving to success boolean
  * @throws Error if registration fails
  */
 export async function register(
     usernameOrData: string | RegisterData, 
-    password?: string,
-    email?: string
+    password?: string
 ): Promise<boolean> {
     // Handle both call signatures
-    const data: { username: string; password: string; email?: string } = typeof usernameOrData === 'string'
-        ? { username: usernameOrData, password: password!, email }
+    const data: { username: string; password: string } = typeof usernameOrData === 'string'
+        ? { username: usernameOrData, password: password! }
         : { username: usernameOrData.username, password: usernameOrData.password };
     
     authStore.update(state => ({ ...state, isLoading: true, error: null }));

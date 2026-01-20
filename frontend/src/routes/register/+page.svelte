@@ -1,6 +1,7 @@
 <script lang="ts">
   import '../../static/registerForm.css';
   import { goto } from '$app/navigation';
+  import { register, isLoading as authLoading } from '$lib/stores/auth';
 
   let username: string = '';
   let password: string = '';
@@ -10,12 +11,14 @@
   let passwordError: string = '';
   let confirmError: string = '';
   let submitMessage: string = '';
+  let isSuccess: boolean = false;
 
   function clearError(field: 'username' | 'password' | 'confirm') {
     if (field === 'username') usernameError = '';
     if (field === 'password') passwordError = '';
     if (field === 'confirm') confirmError = '';
     submitMessage = '';
+    isSuccess = false;
   }
 
   function validateUsername(val: string): string {
@@ -43,37 +46,22 @@
 
     if (usernameError || passwordError || confirmError) {
       submitMessage = 'Prosím opravte chyby vo formulári pred odoslaním.';
+      isSuccess = false;
       return;
     }
 
-    submitMessage = 'Čoskoro budete presmerovaní na prihlasovaciu stránku...';
-
-try {
-      console.log(JSON.stringify({ username, password }));
-      const res = await fetch('http://localhost:5000/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => null);
-        submitMessage = errBody?.message ?? 'Registrácia zlyhala. Skúste to znova.';
-        return;
-      }
-
-      const data = await res.json().catch(() => null);
-      console.log('server response', data);
+    try {
+      await register(username, password);
+      isSuccess = true;
       submitMessage = 'Registrácia úspešná — čoskoro budete presmerovaní na prihlasovaciu stránku...';
-        setTimeout(() => {
-            goto('/login');
-        }, 2000);
+      // Auto presmerovanie na login po registrácii
+      setTimeout(() => {
+        goto('/login');
+      }, 2000);
     } catch (err) {
-      console.error(err);
-      submitMessage = 'Chyba pri komunikácii so serverom. Skúste znova neskôr.';
+      isSuccess = false;
+      submitMessage = (err as Error)?.message || 'Registrácia zlyhala. Skúste to znova.';
     }
-
-    console.log({ username, password });
   }
 </script>
 
@@ -145,10 +133,12 @@ try {
 
         <p>Už máš vytvorený účet?</p>
         <a href="/login" on:click|preventDefault={() => goto('/login')}>prihlás sa</a>
-      <button type="submit" class="submit-btn">Registrovať</button>
+      <button type="submit" class="submit-btn" disabled={$authLoading}>
+        {$authLoading ? 'Registrujem...' : 'Registrovať'}
+      </button>
 
       {#if submitMessage && !(usernameError || passwordError || confirmError)}
-        <div class="form-success">{submitMessage}</div>
+        <div class:form-success={isSuccess} class:form-error={!isSuccess}>{submitMessage}</div>
       {/if}
     </form>
   </div>

@@ -15,9 +15,15 @@ const sensorSchema = new mongoose.Schema(
             required: true
         },
         owner: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User',
+            type: String,
             required: true
+        },
+        // Unikatny API kluc pre senzor, aby sa zabranilo neautorizovanemu
+        // pridavaniu merani.
+        apiKey: {
+            type: String,
+            required: true,
+            unique: true
         },
         isActive: {
             type: Boolean,

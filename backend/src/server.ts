@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import authRoutes from './routes/authRoute.js';
 import sensorRoutes from './routes/sensorRoutes.js';
 import measurementRoutes from './routes/measurementRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
 import { config } from "dotenv";
 
 const app = express();
@@ -30,5 +31,6 @@ try {
 app.use('/api/auth', authRoutes);
 app.use('/api/sensors', sensorRoutes);
 app.use('/api/measurements', measurementRoutes);
+app.use('/api/admin', adminRoutes);
 
 

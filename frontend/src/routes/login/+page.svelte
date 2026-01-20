@@ -1,34 +1,27 @@
 <script lang="ts">
   import '../../static/loginForm.css';
   import { goto } from '$app/navigation';
+  import { login, isLoading, authError, clearError } from '$lib/stores/auth';
+
   let username = '';
   let password = '';
-  let error = '';
-  let loading = false;
+  let localError = '';
 
   async function submit(e: Event) {
     e.preventDefault();
-    error = '';
-    loading = true;
+    localError = '';
+    clearError();
+    
     try {
-      const res = await fetch('http://localhost:5000/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({ message: 'Login failed' }));
-        error = data?.message || `Login failed: ${res.status}`;
-        loading = false;
-        return;
-      }
-      await goto('/profile');
+      await login(username, password);
+      await goto('/sensors');
     } catch (err) {
-      error = (err as Error)?.message || 'Network error';
-    } finally {
-      loading = false;
+      localError = (err as Error)?.message || 'Prihlásenie zlyhalo';
     }
   }
+
+  // Combine local and store errors
+  $: displayError = localError || $authError || '';
 </script>
 
 
@@ -44,8 +37,8 @@
         <form class="login-form" on:submit={submit}>
             <h2>Prihlásenie</h2>
 
-            {#if error}
-                <div class="form-error">{error}</div>
+            {#if displayError}
+                <div class="form-error">{displayError}</div>
             {/if}
 
             <div class="field">
@@ -72,8 +65,8 @@
 
             <p>Nemáš účet? <a href="/register" on:click|preventDefault={() => goto('/register')}>zaregistruj sa</a></p>
 
-            <button type="submit" class="submit-btn" disabled={loading}>
-                {loading ? 'Prihlasovanie...' : 'Prihlásiť sa'}
+            <button type="submit" class="submit-btn" disabled={$isLoading}>
+                {$isLoading ? 'Prihlasovanie...' : 'Prihlásiť sa'}
             </button>
         </form>
     </div>
