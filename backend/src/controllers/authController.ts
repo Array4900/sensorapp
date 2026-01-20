@@ -101,3 +101,27 @@ export const loginUser = async (req: Request, res: Response) => {
         });
     }
 };
+
+export const changePassword = async (req: Request, res: Response) => {
+    try {
+        const { username } = req.params;
+        const { oldPassword, newPassword } = req.body;
+        // nájdi užívateľa v DB podľa username
+        const user = await User.findOne({ username });
+        if (!user) {
+            return res.status(404).json({ message: "User not found." });
+        }
+        // over staré heslo
+        const isOldPasswordValid = await User.schema.methods.comparePassword(oldPassword, user.password);
+        if (!isOldPasswordValid) {
+            return res.status(401).json({ message: "Old password is incorrect." });
+        }
+        // nastav nové heslo a ulož
+        user.password = newPassword; // heslo sa zahashuje v User modeli pomocou hooku 'pre save'
+        await user.save();
+        return res.status(200).json({ message: "Password changed successfully." });
+    } catch (err) {
+        console.error("Changing password failed.", err);
+        return res.status(500).json({ message: "Internal server error." });
+    }
+};

@@ -24,6 +24,7 @@ const userSchema = new mongoose.Schema(
 
 
 userSchema.pre("save", async function (next) {
+    // zahashujeme iba ak je heslo modifikovane alebo je pridavane nove, nie ked menim napr. len meno / rolu
     if (!this.isModified("password")) return next();
 
     this.password = await bcrypt.hash(this.password, 10);
