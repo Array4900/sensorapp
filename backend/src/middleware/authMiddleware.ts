@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { isTokenBlacklisted } from '../utils/tokenBlacklist.js';
 
 interface AuthRequest extends Request {
     user?: { username: string; role: string };
@@ -13,6 +14,11 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
 
     if (!token) {
         return res.status(401).json({ message: 'Token required' });
+    }
+
+    // Pozri ci sa nahodou uz token nenachadza na blacklistu (user bol logoutnuty)
+    if (isTokenBlacklisted(token)) {
+        return res.status(401).json({ message: 'Token has been revoked' });
     }
 
     try {

@@ -1,5 +1,5 @@
 import express from 'express';
-import { registerUser, loginUser, changePassword, verifyToken } from '../controllers/authController.js';
+import { registerUser, loginUser, changePassword, verifyToken, logoutUser } from '../controllers/authController.js';
 import { authenticateToken } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -36,6 +36,15 @@ router.post('/changePassword', authenticateToken, async (req, res) => {
         await changePassword(req, res);
     } catch (error) {
         res.status(400).json({ error: 'Error changing password', details: error });
+    }
+});
+
+// logout - invalidate token
+router.post('/logout', async (req, res) => {
+    try {
+        await logoutUser(req, res);
+    } catch (error) {
+        res.status(400).json({ error: 'Error logging out', details: error });
     }
 });
 

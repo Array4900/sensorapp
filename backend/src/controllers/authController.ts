@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 
 import User from "../models/User.js";
 import { UserRole } from "../utils/roleEnum.js";
+import { blacklistToken } from "../utils/tokenBlacklist.js";
 
 interface AuthRequest extends Request {
     user?: { username: string; role: string };
@@ -159,6 +160,37 @@ export const verifyToken = async (req: AuthRequest, res: Response) => {
         });
     } catch (err) {
         console.error("Token verification failed.", err);
+        return res.status(500).json({ message: "Internal server error." });
+    }
+};
+
+/**
+ * Logout user - invalidates the JWT token by adding it to blacklist
+ */
+export const logoutUser = async (req: Request, res: Response) => {
+    try {
+        const token = req.headers['authorization']?.split(' ')[1];
+        
+        if (!token) {
+            return res.status(400).json({ message: "No token provided" });
+        }
+
+        const secret = process.env.JWT_SECRET || 'supersecret123';
+        
+        try {
+            // Decode the token to get expiration time
+            const decoded = jwt.verify(token, secret) as { exp: number };
+            
+            // Add token to blacklist until it expires
+            blacklistToken(token, decoded.exp);
+            
+            return res.status(200).json({ message: "Logout successful" });
+        } catch (jwtError) {
+            // Token is invalid or expired, but that's fine for logout
+            return res.status(200).json({ message: "Logout successful" });
+        }
+    } catch (err) {
+        console.error("Logout failed.", err);
         return res.status(500).json({ message: "Internal server error." });
     }
 };

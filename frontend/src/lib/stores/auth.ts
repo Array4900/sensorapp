@@ -367,9 +367,20 @@ export async function register(
 
 /**
  * Logout current user
- * Clears all auth state and persisted data
+ * Invalidates token on backend and clears all auth state and persisted data
  */
-export function logout(): void {
+export async function logout(): Promise<void> {
+    try {
+        // Call backend to invalidate the token
+        await authFetch('/auth/logout', {
+            method: 'POST'
+        });
+    } catch (error) {
+        // Even if backend call fails, we still clear local state
+        console.error('Backend logout failed:', error);
+    }
+    
+    // Clear local auth state
     authStore.set({
         user: null,
         token: null,
