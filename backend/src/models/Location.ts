@@ -4,25 +4,22 @@ const locationSchema = new mongoose.Schema(
     {
         name: {
             type: String,
-            required: true,
-            unique: true
+            required: true
         },
         description: {
             type: String,
-            required: false
-        },
-        coordinates: {
-            type: {
-                latitude: { type: Number, required: true },
-                longitude: { type: Number, required: true }
-            },
-            required: true
+            required: false,
+            default: ''
         }, 
         owner: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User',
+            type: String,
             required: true
         }
     },
     { timestamps: true, collection: 'locations' }
 );
+
+// Compound index to ensure unique names per user (not globally unique)
+locationSchema.index({ name: 1, owner: 1 }, { unique: true });
+
+export default mongoose.model("Location", locationSchema);

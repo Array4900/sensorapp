@@ -359,8 +359,8 @@
             
             <div class="sensor-details">
                 <div class="detail-item">
-                    <span class="detail-label">📍 Umiestnenie</span>
-                    <span class="detail-value">{sensor.location}</span>
+                    <span class="detail-label">📍 Lokácia</span>
+                    <span class="detail-value">{sensor.location?.name || 'Bez lokácie'}</span>
                 </div>
                 <div class="detail-item">
                     <span class="detail-label">🔧 Typ</span>

@@ -1,11 +1,22 @@
 <!--
-  Admin Page - User and sensor management for administrators
+  Admin Page - User, sensor and location management for administrators
 -->
 <script lang="ts">
     import { onMount } from 'svelte';
     import { goto } from '$app/navigation';
     import { isAuthenticated, isAdmin, user as currentUser } from '$lib/stores/auth';
-    import { getAllUsers, getAllSensors, getUserSensors, deleteUser, adminDeleteSensor, type User, type Sensor } from '$lib/api';
+    import { 
+        getAllUsers, 
+        getAllSensors, 
+        getAllLocations,
+        getUserSensors, 
+        getUserLocations,
+        deleteUser, 
+        adminDeleteSensor, 
+        type User, 
+        type Sensor,
+        type Location 
+    } from '$lib/api';
 
     // ============================================
     // STATE
@@ -13,16 +24,18 @@
     
     let users: User[] = [];
     let allSensors: Sensor[] = [];
+    let allLocations: Location[] = [];
     let loading = true;
     let error = '';
     
     // Expanded user details
     let expandedUser: string | null = null;
     let userSensors: Record<string, Sensor[]> = {};
-    let loadingUserSensors: string | null = null;
+    let userLocations: Record<string, Location[]> = {};
+    let loadingUserData: string | null = null;
     
     // Active tab
-    let activeTab: 'users' | 'sensors' = 'users';
+    let activeTab: 'users' | 'sensors' | 'locations' = 'users';
     
     // ============================================
     // LIFECYCLE
@@ -50,12 +63,14 @@
         loading = true;
         error = '';
         try {
-            const [usersData, sensorsData] = await Promise.all([
+            const [usersData, sensorsData, locationsData] = await Promise.all([
                 getAllUsers(),
-                getAllSensors()
+                getAllSensors(),
+                getAllLocations()
             ]);
             users = usersData;
             allSensors = sensorsData;
+            allLocations = locationsData;
         } catch (e) {
             error = (e as Error).message || 'Nepodarilo sa načítať dáta';
         } finally {
@@ -71,16 +86,22 @@
         
         expandedUser = username;
         
-        // Load user sensors if not cached
-        if (!userSensors[username]) {
-            loadingUserSensors = username;
+        // Load user data if not cached
+        if (!userSensors[username] || !userLocations[username]) {
+            loadingUserData = username;
             try {
-                userSensors[username] = await getUserSensors(username);
+                const [sensors, locations] = await Promise.all([
+                    getUserSensors(username),
+                    getUserLocations(username)
+                ]);
+                userSensors[username] = sensors;
+                userLocations[username] = locations;
             } catch (e) {
-                console.error('Failed to load user sensors:', e);
+                console.error('Failed to load user data:', e);
                 userSensors[username] = [];
+                userLocations[username] = [];
             } finally {
-                loadingUserSensors = null;
+                loadingUserData = null;
             }
         }
     }
@@ -91,7 +112,7 @@
             return;
         }
         
-        if (!confirm(`Naozaj chcete vymazať používateľa "${username}" a všetky jeho senzory a merania?`)) {
+        if (!confirm(`Naozaj chcete vymazať používateľa "${username}" a všetky jeho senzory, lokácie a merania?`)) {
             return;
         }
         
@@ -99,7 +120,9 @@
             await deleteUser(username);
             users = users.filter(u => u.username !== username);
             allSensors = allSensors.filter(s => s.owner !== username);
+            allLocations = allLocations.filter(l => l.owner !== username);
             delete userSensors[username];
+            delete userLocations[username];
             if (expandedUser === username) {
                 expandedUser = null;
             }
@@ -130,6 +153,18 @@
     
     function getSensorCountForUser(username: string): number {
         return allSensors.filter(s => s.owner === username).length;
+    }
+    
+    function getLocationCountForUser(username: string): number {
+        return allLocations.filter(l => l.owner === username).length;
+    }
+    
+    function getLocationName(sensor: Sensor): string {
+        return sensor.location?.name || 'Bez lokácie';
+    }
+    
+    function getSensorCountForLocation(locationId: string): number {
+        return allSensors.filter(s => s.location?._id === locationId).length;
     }
 </script>
 
@@ -293,6 +328,7 @@
     .user-actions {
         display: flex;
         gap: var(--space-2);
+        align-items: center;
     }
     
     .btn {
@@ -337,21 +373,29 @@
         transform: rotate(180deg);
     }
     
-    /* User Sensors Expansion */
-    .user-sensors {
+    /* User Data Expansion */
+    .user-data {
         border-top: 1px solid var(--color-border);
         padding: var(--space-4);
         background: var(--color-bg-secondary);
     }
     
-    .sensors-title {
+    .data-section {
+        margin-bottom: var(--space-4);
+    }
+    
+    .data-section:last-child {
+        margin-bottom: 0;
+    }
+    
+    .data-title {
         font-size: var(--font-size-base);
         font-weight: 600;
         margin-bottom: var(--space-3);
         color: var(--color-text-primary);
     }
     
-    .sensors-table {
+    .data-table {
         width: 100%;
         border-collapse: collapse;
         background: var(--color-bg-primary);
@@ -359,28 +403,28 @@
         overflow: hidden;
     }
     
-    .sensors-table th,
-    .sensors-table td {
+    .data-table th,
+    .data-table td {
         padding: var(--space-3);
         text-align: left;
         border-bottom: 1px solid var(--color-border);
     }
     
-    .sensors-table th {
+    .data-table th {
         background: var(--color-bg-tertiary);
         font-weight: 600;
         color: var(--color-text-secondary);
         font-size: var(--font-size-sm);
     }
     
-    .no-sensors {
+    .no-data {
         text-align: center;
         padding: var(--space-4);
         color: var(--color-text-secondary);
     }
     
-    /* All Sensors Table */
-    .sensors-section {
+    /* All Data Tables */
+    .section-container {
         background: var(--color-bg-primary);
         border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
@@ -398,19 +442,19 @@
         color: var(--color-text-primary);
     }
     
-    .all-sensors-table {
+    .all-data-table {
         width: 100%;
         border-collapse: collapse;
     }
     
-    .all-sensors-table th,
-    .all-sensors-table td {
+    .all-data-table th,
+    .all-data-table td {
         padding: var(--space-3) var(--space-4);
         text-align: left;
         border-bottom: 1px solid var(--color-border);
     }
     
-    .all-sensors-table th {
+    .all-data-table th {
         background: var(--color-bg-secondary);
         font-weight: 600;
         color: var(--color-text-secondary);
@@ -469,7 +513,7 @@
 <div class="admin-page">
     <div class="page-header">
         <h1 class="page-title">⚙️ Administrácia</h1>
-        <p class="page-subtitle">Správa používateľov a senzorov</p>
+        <p class="page-subtitle">Správa používateľov, senzorov a lokácií</p>
     </div>
     
     {#if loading}
@@ -494,6 +538,10 @@
                 <div class="stat-label">Senzory</div>
             </div>
             <div class="stat-card">
+                <div class="stat-value">{allLocations.length}</div>
+                <div class="stat-label">Lokácie</div>
+            </div>
+            <div class="stat-card">
                 <div class="stat-value">{allSensors.filter(s => s.isActive).length}</div>
                 <div class="stat-label">Aktívne senzory</div>
             </div>
@@ -515,6 +563,13 @@
             >
                 📡 Všetky senzory ({allSensors.length})
             </button>
+            <button 
+                class="tab" 
+                class:active={activeTab === 'locations'}
+                on:click={() => activeTab = 'locations'}
+            >
+                📍 Všetky lokácie ({allLocations.length})
+            </button>
         </div>
         
         <!-- Users Tab -->
@@ -530,6 +585,7 @@
                                     <div class="user-meta">
                                         <span>📅 {formatDate(user.createdAt)}</span>
                                         <span>📡 {getSensorCountForUser(user.username)} senzorov</span>
+                                        <span>📍 {getLocationCountForUser(user.username)} lokácií</span>
                                     </div>
                                 </div>
                             </div>
@@ -550,47 +606,80 @@
                         </div>
                         
                         {#if expandedUser === user.username}
-                            <div class="user-sensors">
-                                <h4 class="sensors-title">📡 Senzory používateľa</h4>
-                                
-                                {#if loadingUserSensors === user.username}
+                            <div class="user-data">
+                                {#if loadingUserData === user.username}
                                     <div class="loading-spinner loading-small"></div>
-                                {:else if userSensors[user.username]?.length === 0}
-                                    <div class="no-sensors">Používateľ nemá žiadne senzory</div>
-                                {:else if userSensors[user.username]}
-                                    <table class="sensors-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Názov</th>
-                                                <th>Umiestnenie</th>
-                                                <th>Typ</th>
-                                                <th>Stav</th>
-                                                <th>Akcie</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {#each userSensors[user.username] as sensor (sensor._id)}
-                                                <tr>
-                                                    <td>{sensor.name}</td>
-                                                    <td>{sensor.location}</td>
-                                                    <td>{sensor.type}</td>
-                                                    <td>
-                                                        <span class="sensor-status" class:status-active={sensor.isActive} class:status-inactive={!sensor.isActive}>
-                                                            {sensor.isActive ? 'Aktívny' : 'Neaktívny'}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <button 
-                                                            class="btn btn-small btn-danger"
-                                                            on:click={() => handleDeleteSensor(sensor._id, user.username)}
-                                                        >
-                                                            🗑️
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            {/each}
-                                        </tbody>
-                                    </table>
+                                {:else}
+                                    <!-- User Locations -->
+                                    <div class="data-section">
+                                        <h4 class="data-title">📍 Lokácie používateľa</h4>
+                                        {#if userLocations[user.username]?.length === 0}
+                                            <div class="no-data">Používateľ nemá žiadne lokácie</div>
+                                        {:else if userLocations[user.username]}
+                                            <table class="data-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Názov</th>
+                                                        <th>Popis</th>
+                                                        <th>Počet senzorov</th>
+                                                        <th>Vytvorené</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {#each userLocations[user.username] as location (location._id)}
+                                                        <tr>
+                                                            <td>{location.name}</td>
+                                                            <td>{location.description || '-'}</td>
+                                                            <td>{getSensorCountForLocation(location._id)}</td>
+                                                            <td>{formatDate(location.createdAt)}</td>
+                                                        </tr>
+                                                    {/each}
+                                                </tbody>
+                                            </table>
+                                        {/if}
+                                    </div>
+                                    
+                                    <!-- User Sensors -->
+                                    <div class="data-section">
+                                        <h4 class="data-title">📡 Senzory používateľa</h4>
+                                        {#if userSensors[user.username]?.length === 0}
+                                            <div class="no-data">Používateľ nemá žiadne senzory</div>
+                                        {:else if userSensors[user.username]}
+                                            <table class="data-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Názov</th>
+                                                        <th>Lokácia</th>
+                                                        <th>Typ</th>
+                                                        <th>Stav</th>
+                                                        <th>Akcie</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {#each userSensors[user.username] as sensor (sensor._id)}
+                                                        <tr>
+                                                            <td>{sensor.name}</td>
+                                                            <td>{getLocationName(sensor)}</td>
+                                                            <td>{sensor.type}</td>
+                                                            <td>
+                                                                <span class="sensor-status" class:status-active={sensor.isActive} class:status-inactive={!sensor.isActive}>
+                                                                    {sensor.isActive ? 'Aktívny' : 'Neaktívny'}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                <button 
+                                                                    class="btn btn-small btn-danger"
+                                                                    on:click={() => handleDeleteSensor(sensor._id, user.username)}
+                                                                >
+                                                                    🗑️
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    {/each}
+                                                </tbody>
+                                            </table>
+                                        {/if}
+                                    </div>
                                 {/if}
                             </div>
                         {/if}
@@ -601,20 +690,20 @@
         
         <!-- Sensors Tab -->
         {#if activeTab === 'sensors'}
-            <div class="sensors-section">
+            <div class="section-container">
                 <div class="section-header">
                     <h2 class="section-title">📡 Všetky senzory v systéme</h2>
                 </div>
                 
                 {#if allSensors.length === 0}
-                    <div class="no-sensors">V systéme nie sú žiadne senzory</div>
+                    <div class="no-data">V systéme nie sú žiadne senzory</div>
                 {:else}
-                    <table class="all-sensors-table">
+                    <table class="all-data-table">
                         <thead>
                             <tr>
                                 <th>Názov</th>
                                 <th>Vlastník</th>
-                                <th>Umiestnenie</th>
+                                <th>Lokácia</th>
                                 <th>Typ</th>
                                 <th>Stav</th>
                                 <th>Vytvorené</th>
@@ -626,7 +715,7 @@
                                 <tr>
                                     <td>{sensor.name}</td>
                                     <td>{sensor.owner}</td>
-                                    <td>{sensor.location}</td>
+                                    <td>{getLocationName(sensor)}</td>
                                     <td>{sensor.type}</td>
                                     <td>
                                         <span class="sensor-status" class:status-active={sensor.isActive} class:status-inactive={!sensor.isActive}>
@@ -642,6 +731,42 @@
                                             🗑️ Vymazať
                                         </button>
                                     </td>
+                                </tr>
+                            {/each}
+                        </tbody>
+                    </table>
+                {/if}
+            </div>
+        {/if}
+        
+        <!-- Locations Tab -->
+        {#if activeTab === 'locations'}
+            <div class="section-container">
+                <div class="section-header">
+                    <h2 class="section-title">📍 Všetky lokácie v systéme</h2>
+                </div>
+                
+                {#if allLocations.length === 0}
+                    <div class="no-data">V systéme nie sú žiadne lokácie</div>
+                {:else}
+                    <table class="all-data-table">
+                        <thead>
+                            <tr>
+                                <th>Názov</th>
+                                <th>Vlastník</th>
+                                <th>Popis</th>
+                                <th>Počet senzorov</th>
+                                <th>Vytvorené</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {#each allLocations as location (location._id)}
+                                <tr>
+                                    <td>{location.name}</td>
+                                    <td>{location.owner}</td>
+                                    <td>{location.description || '-'}</td>
+                                    <td>{getSensorCountForLocation(location._id)}</td>
+                                    <td>{formatDate(location.createdAt)}</td>
                                 </tr>
                             {/each}
                         </tbody>

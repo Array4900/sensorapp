@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import User from '../models/User.js';
 import Sensor from '../models/Sensor.js';
 import Measurement from '../models/Measurement.js';
+import Location from '../models/Location.js';
 import { UserRole } from '../utils/roleEnum.js';
 
 interface AuthRequest extends Request {
@@ -30,10 +31,21 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
 // Get all sensors (for admin - includes owner info)
 export const getAllSensors = async (req: AuthRequest, res: Response) => {
     try {
-        const sensors = await Sensor.find();
+        const sensors = await Sensor.find().populate('location');
         return res.status(200).json({ sensors });
     } catch (error) {
         console.error('Error fetching sensors:', error);
+        return res.status(500).json({ message: 'Internal server error', error });
+    }
+};
+
+// Get all locations (for admin dashboard)
+export const getAllLocations = async (req: AuthRequest, res: Response) => {
+    try {
+        const locations = await Location.find();
+        return res.status(200).json({ locations });
+    } catch (error) {
+        console.error('Error fetching locations:', error);
         return res.status(500).json({ message: 'Internal server error', error });
     }
 };
@@ -42,10 +54,22 @@ export const getAllSensors = async (req: AuthRequest, res: Response) => {
 export const getSensorsByUser = async (req: AuthRequest, res: Response) => {
     try {
         const { username } = req.params;
-        const sensors = await Sensor.find({ owner: username });
+        const sensors = await Sensor.find({ owner: username }).populate('location');
         return res.status(200).json({ sensors });
     } catch (error) {
         console.error('Error fetching sensors:', error);
+        return res.status(500).json({ message: 'Internal server error', error });
+    }
+};
+
+// Get locations by user
+export const getLocationsByUser = async (req: AuthRequest, res: Response) => {
+    try {
+        const { username } = req.params;
+        const locations = await Location.find({ owner: username });
+        return res.status(200).json({ locations });
+    } catch (error) {
+        console.error('Error fetching locations:', error);
         return res.status(500).json({ message: 'Internal server error', error });
     }
 };
@@ -76,6 +100,9 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
         // Delete all sensors
         await Sensor.deleteMany({ owner: username });
 
+        // Delete all locations
+        const deletedLocations = await Location.deleteMany({ owner: username });
+
         // Delete the user
         await User.deleteOne({ username });
 
@@ -83,6 +110,7 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
             message: 'User and all associated data deleted successfully',
             deleted: {
                 sensors: userSensors.length,
+                locations: deletedLocations.deletedCount,
                 user: username
             }
         });

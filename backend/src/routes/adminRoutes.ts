@@ -3,8 +3,10 @@ import { authenticateToken } from '../middleware/authMiddleware.js';
 import { 
     requireAdmin, 
     getAllUsers, 
-    getAllSensors, 
-    getSensorsByUser, 
+    getAllSensors,
+    getAllLocations,
+    getSensorsByUser,
+    getLocationsByUser,
     deleteUser, 
     adminDeleteSensor 
 } from '../controllers/adminController.js';
@@ -23,5 +25,9 @@ router.delete('/users/:username', deleteUser);
 router.get('/sensors', getAllSensors);
 router.get('/users/:username/sensors', getSensorsByUser);
 router.delete('/sensors/:id', adminDeleteSensor);
+
+// Location management
+router.get('/locations', getAllLocations);
+router.get('/users/:username/locations', getLocationsByUser);
 
 export default router;

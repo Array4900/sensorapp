@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Sensor from '../models/Sensor.js';
 import Measurement from '../models/Measurement.js';
+import Location from '../models/Location.js';
 import { UserRole } from '../utils/roleEnum.js';
 import crypto from 'crypto';
 
@@ -17,21 +18,37 @@ export const createSensor = async (req: AuthRequest, res: Response) => {
     try {
         const { name, location, type } = req.body;
 
-        if (!name || !location || !type) {
-            return res.status(400).json({ message: 'Missing required fields: name, location, type' });
+        if (!name || !type) {
+            return res.status(400).json({ message: 'Missing required fields: name, type' });
+        }
+
+        // Validate location if provided
+        if (location) {
+            const locationDoc = await Location.findById(location);
+            if (!locationDoc) {
+                return res.status(400).json({ message: 'Location not found' });
+            }
+            // Check if the location belongs to the user
+            if (locationDoc.owner !== req.user?.username) {
+                return res.status(403).json({ message: 'You can only assign sensors to your own locations' });
+            }
         }
 
         const apiKey = generateApiKey();
 
         const newSensor = new Sensor({
             name,
-            location,
+            location: location || null,
             type,
-            owner: req.user?.username, // Store owner reference
+            owner: req.user?.username,
             apiKey
         });
 
         await newSensor.save();
+        
+        // Populate location before returning
+        await newSensor.populate('location');
+        
         return res.status(201).json({ message: 'Sensor created successfully', sensor: newSensor });
     } catch (error) {
         console.error('Error creating sensor:', error);
@@ -41,12 +58,21 @@ export const createSensor = async (req: AuthRequest, res: Response) => {
 
 export const getSensors = async (req: AuthRequest, res: Response) => {
     try {
-        // Admini vidia vsetky senzory, user len svoje
-        const query = req.user?.role === UserRole.ADMIN
-            ? {} 
-            : { owner: req.user?.username };
+        const { locationId } = req.query;
         
-        const sensors = await Sensor.find(query);
+        // Users see only their own sensors, admins in sensors view also see only their own
+        const query: any = { owner: req.user?.username };
+        
+        // Filter by location if provided
+        if (locationId) {
+            if (locationId === 'none') {
+                query.location = null;
+            } else {
+                query.location = locationId;
+            }
+        }
+        
+        const sensors = await Sensor.find(query).populate('location');
         return res.status(200).json({ sensors });
     } catch (error) {
         console.error('Error fetching sensors:', error);
@@ -57,7 +83,7 @@ export const getSensors = async (req: AuthRequest, res: Response) => {
 export const getSensorById = async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;
-        const sensor = await Sensor.findById(id);
+        const sensor = await Sensor.findById(id).populate('location');
 
         if (!sensor) {
             return res.status(404).json({ message: 'Sensor not found' });
@@ -90,11 +116,31 @@ export const updateSensor = async (req: AuthRequest, res: Response) => {
             return res.status(403).json({ message: 'Access denied' });
         }
 
+        // Validate location if provided
+        if (location) {
+            const locationDoc = await Location.findById(location);
+            if (!locationDoc) {
+                return res.status(400).json({ message: 'Location not found' });
+            }
+            // Check if the location belongs to the user
+            if (locationDoc.owner !== req.user?.username) {
+                return res.status(403).json({ message: 'You can only assign sensors to your own locations' });
+            }
+        }
+
+        const updateData: any = { name, type, isActive };
+        // Handle location - allow setting to null or a valid location ID
+        if (location === null || location === '') {
+            updateData.location = null;
+        } else if (location) {
+            updateData.location = location;
+        }
+
         const sensor = await Sensor.findByIdAndUpdate(
             id,
-            { name, location, type, isActive },
+            updateData,
             { new: true }
-        );
+        ).populate('location');
 
         return res.status(200).json({ message: 'Sensor updated successfully', sensor });
     } catch (error) {

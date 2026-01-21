@@ -7,6 +7,7 @@ import authRoutes from './routes/authRoute.js';
 import sensorRoutes from './routes/sensorRoutes.js';
 import measurementRoutes from './routes/measurementRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import locationRoutes from './routes/locationRoutes.js';
 
 const app = express();
 app.use(cors( {
@@ -35,5 +36,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/sensors', sensorRoutes);
 app.use('/api/measurements', measurementRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/locations', locationRoutes);
 
 
