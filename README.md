@@ -16,6 +16,6 @@ Pre spustenie projektu použite príkaz v koreňovom adresári projektu /sensora
 docker-compose up --build
 ```
 
-Frontend bude dostupný na adrese: http://192.168.137.1:5173, alebo podla nastavení docker-compose.yml súboru.
+Frontend bude dostupný na adrese: http://192.168.137.1:5173, alebo podla nastavení v docker-compose.yml súbore.
 Databáza MongoDB bude pre compass dostupná na rovnakom zariadení na adrese mongodb://localhost:27018 .
 

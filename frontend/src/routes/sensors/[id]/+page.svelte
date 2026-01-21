@@ -7,7 +7,6 @@
     import { page } from '$app/stores';
     import { isAuthenticated } from '$lib/stores/auth';
     import { getSensorById, getSensorMeasurements, type Sensor, type Measurement } from '$lib/api';
-    import { defaultClientConditions } from 'vite';
 
     // ============================================
     // STATE
