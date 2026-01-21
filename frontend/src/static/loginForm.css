@@ -126,8 +126,36 @@ input.invalid{
 }
 
 @media (max-width: 800px){
-    .register-page{ grid-template-columns: 1fr; }
-    .left-panel{ padding: 2rem; }
-    .right-panel{ padding: 1.5rem; }
+    .login-page{ 
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+    }
+    .left-panel{ 
+        padding: 2rem;
+        order: 2;
+    }
+    .right-panel{ 
+        padding: 1.5rem;
+        order: 1;
+    }
+    .welcome h1 {
+        font-size: 1.75rem;
+    }
+}
+
+@media (max-width: 480px){
+    .login-page{
+        min-height: auto;
+    }
+    .left-panel{
+        display: none;
+    }
+    .right-panel{
+        padding: 1rem;
+        min-height: 100vh;
+    }
+    .login-form{
+        padding: 1.5rem;
+    }
 }
 
