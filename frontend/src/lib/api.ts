@@ -261,3 +261,16 @@ export async function adminDeleteSensor(id: string): Promise<void> {
         throw new Error('Failed to delete sensor');
     }
 }
+
+export async function transferSensorOwnership(sensorId: string, newOwner: string): Promise<Sensor> {
+    const response = await authFetch(`/admin/sensors/${sensorId}/transfer`, {
+        method: 'PUT',
+        body: JSON.stringify({ newOwner })
+    });
+    if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to transfer sensor');
+    }
+    const data = await response.json();
+    return data.sensor;
+}

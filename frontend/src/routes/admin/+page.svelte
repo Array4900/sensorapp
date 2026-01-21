@@ -12,7 +12,8 @@
         getUserSensors, 
         getUserLocations,
         deleteUser, 
-        adminDeleteSensor, 
+        adminDeleteSensor,
+        transferSensorOwnership,
         type User, 
         type Sensor,
         type Location 
@@ -36,6 +37,9 @@
     
     // Active tab
     let activeTab: 'users' | 'sensors' | 'locations' = 'users';
+    
+    // Transfer state
+    let transferringId: string | null = null;
     
     // ============================================
     // LIFECYCLE
@@ -144,6 +148,36 @@
             }
         } catch (e) {
             alert((e as Error).message || 'Nepodarilo sa vymazať senzor');
+        }
+    }
+    
+    async function handleTransferSensor(sensorId: string, oldOwner: string, newOwner: string) {
+        if (!newOwner || newOwner === oldOwner) return;
+        
+        if (!confirm(`Naozaj chcete previesť senzor na používateľa "${newOwner}"? Lokácia bude zrušená a vygeneruje sa nový API kľúč.`)) {
+            return;
+        }
+        
+        transferringId = sensorId;
+        try {
+            const updatedSensor = await transferSensorOwnership(sensorId, newOwner);
+            
+            // Update allSensors list
+            allSensors = allSensors.map(s => s._id === sensorId ? updatedSensor : s);
+            
+            // Update userSensors cache - remove from old owner, add to new owner
+            if (userSensors[oldOwner]) {
+                userSensors[oldOwner] = userSensors[oldOwner].filter(s => s._id !== sensorId);
+            }
+            if (userSensors[newOwner]) {
+                userSensors[newOwner] = [...userSensors[newOwner], updatedSensor];
+            }
+            
+            alert('Senzor bol úspešne prevedený');
+        } catch (e) {
+            alert((e as Error).message || 'Nepodarilo sa previesť senzor');
+        } finally {
+            transferringId = null;
         }
     }
     
@@ -478,6 +512,35 @@
         color: #721c24;
     }
     
+    /* Transfer select */
+    .transfer-select {
+        padding: var(--space-1) var(--space-2);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        font-size: var(--font-size-sm);
+        background: white;
+        cursor: pointer;
+        min-width: 120px;
+    }
+    
+    .transfer-select:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .transferring {
+        display: inline-block;
+        margin-left: var(--space-2);
+        font-size: var(--font-size-xs);
+        color: var(--color-primary);
+        animation: pulse 1s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    
     /* Loading & Error States */
     .loading-container, .error-container {
         text-align: center;
@@ -707,6 +770,7 @@
                                 <th>Typ</th>
                                 <th>Stav</th>
                                 <th>Vytvorené</th>
+                                <th>Previesť na</th>
                                 <th>Akcie</th>
                             </tr>
                         </thead>
@@ -723,6 +787,28 @@
                                         </span>
                                     </td>
                                     <td>{formatDate(sensor.createdAt)}</td>
+                                    <td>
+                                        <select 
+                                            class="transfer-select"
+                                            disabled={transferringId === sensor._id}
+                                            on:change={(e) => {
+                                                const target = e.currentTarget;
+                                                const newOwner = target.value;
+                                                if (newOwner) {
+                                                    handleTransferSensor(sensor._id, sensor.owner, newOwner);
+                                                    target.value = '';
+                                                }
+                                            }}
+                                        >
+                                            <option value="">-- Vybrať --</option>
+                                            {#each users.filter(u => u.username !== sensor.owner) as u (u._id)}
+                                                <option value={u.username}>{u.username}</option>
+                                            {/each}
+                                        </select>
+                                        {#if transferringId === sensor._id}
+                                            <span class="transferring">Prevádza sa...</span>
+                                        {/if}
+                                    </td>
                                     <td>
                                         <button 
                                             class="btn btn-small btn-danger"

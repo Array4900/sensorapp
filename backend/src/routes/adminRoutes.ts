@@ -8,7 +8,8 @@ import {
     getSensorsByUser,
     getLocationsByUser,
     deleteUser, 
-    adminDeleteSensor 
+    adminDeleteSensor,
+    transferSensorOwnership
 } from '../controllers/adminController.js';
 
 const router = express.Router();
@@ -25,6 +26,7 @@ router.delete('/users/:username', deleteUser);
 router.get('/sensors', getAllSensors);
 router.get('/users/:username/sensors', getSensorsByUser);
 router.delete('/sensors/:id', adminDeleteSensor);
+router.put('/sensors/:id/transfer', transferSensorOwnership);
 
 // Location management
 router.get('/locations', getAllLocations);
