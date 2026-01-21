@@ -3,7 +3,6 @@ import User from '../models/User.js';
 import Sensor from '../models/Sensor.js';
 import Measurement from '../models/Measurement.js';
 import Location from '../models/Location.js';
-import { UserRole } from '../utils/roleEnum.js';
 import crypto from 'crypto';
 
 interface AuthRequest extends Request {
@@ -14,14 +13,6 @@ interface AuthRequest extends Request {
 function generateApiKey(): string {
     return 'sk_' + crypto.randomBytes(24).toString('hex');
 }
-
-// Middleware to check admin role
-export const requireAdmin = (req: AuthRequest, res: Response, next: Function) => {
-    if (req.user?.role !== UserRole.ADMIN) {
-        return res.status(403).json({ message: 'Admin access required' });
-    }
-    next();
-};
 
 // Get all users
 export const getAllUsers = async (req: AuthRequest, res: Response) => {

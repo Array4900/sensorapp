@@ -1,7 +1,7 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/authMiddleware.js';
+import { requireAdmin } from '../middleware/adminMiddleWare.js';
 import { 
-    requireAdmin, 
     getAllUsers, 
     getAllSensors,
     getAllLocations,
