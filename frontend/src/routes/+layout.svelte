@@ -12,9 +12,11 @@
 
 <script lang="ts">
     import type { Snippet } from 'svelte';
+    import { onMount } from 'svelte';
     import { page } from '$app/stores';
     import { goto } from '$app/navigation';
     import { user, isAuthenticated, isAdmin, logout, authReady } from '$lib/stores/auth';
+    import { registerServiceWorker } from '$lib/pwa';
     import '../static/layout.css';
     
     // ============================================
@@ -33,6 +35,15 @@
     
     /** User dropdown menu state */
     let userMenuOpen = $state(false);
+    
+    // ============================================
+    // LIFECYCLE HOOKS
+    // ============================================
+    
+    onMount(() => {
+        // Register service worker for PWA functionality
+        registerServiceWorker();
+    });
     
     // ============================================
     // NAVIGATION ITEMS
