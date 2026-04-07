@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { UserRole } from '../utils/roleEnum.js';
 
 interface AuthRequest extends Request {

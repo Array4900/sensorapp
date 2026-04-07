@@ -55,3 +55,9 @@ pids/
 # Ignore local frontend/backends node_modules in any subfolder
 **/node_modules/
 
+# MongoDB data
+mongodb_data/
+
+# Mosquitto data and logs
+mosquitto/data/
+mosquitto/log/

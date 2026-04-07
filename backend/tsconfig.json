@@ -1,13 +1,26 @@
 {
   "compilerOptions": {
-    "target": "ES2021",
-    "module": "es2022",
-    "moduleResolution": "node",
+    /* Základné nastavenia */
+    "target": "ESNext",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "rootDir": "src",
     "outDir": "dist",
-    "esModuleInterop": true,
+    
+    /* Prísnosť a kvalita kódu */
     "strict": true,
-    "skipLibCheck": true
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* Moderné vychytávky */
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true, // Nahrádza staršie nastavenia pre importy
+    "resolveJsonModule": true,    // Aby si mohol importovať .json súbory
+    "sourceMap": true             // Dôležité pre debugovanie v Dockeri
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

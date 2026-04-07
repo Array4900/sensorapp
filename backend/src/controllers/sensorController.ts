@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import Sensor from '../models/Sensor.js';
 import Measurement from '../models/Measurement.js';
 import Location from '../models/Location.js';

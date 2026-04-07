@@ -1,4 +1,5 @@
-import mongoose, { Collection } from "mongoose";
+import mongoose from "mongoose";
+const { Collection } = mongoose;
 import { UserRole } from "../utils/roleEnum.js";
 import bcrypt from "bcrypt";
 
