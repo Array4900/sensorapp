@@ -8,7 +8,7 @@ services:
     ports:
       - "27018:27017" # Prístup z Windowsu (Compass) cez 27018
     volumes:
-      - mongo_data:/data/db
+      - ./mongodb_data:/data/db
 
   # 2. Backend (Express)
   api:
@@ -31,11 +31,22 @@ services:
       - "5173:5173"
     environment:
       # Pre prehliadač (klient): Volá Windows port
-      - PUBLIC_API_URL=http://192.168.137.1:5000/api
+      - PUBLIC_API_URL=http://localhost:5000/api
       # Pre SvelteKit server (SSR): Volá vnútorný Docker názov "api"
       - INTERNAL_API_URL=http://api:5000/api
     depends_on:
       - api
 
-volumes:
-  mongo_data:
+  # 4. MQTT Broker (Mosquitto)
+  # mosquitto:
+  #   image: eclipse-mosquitto:latest
+  #   container_name: mosquitto
+  #   restart: always
+  #   ports:
+  #     - "1883:1883"   # MQTT port
+  #     - "9001:9001"   # WebSockets port
+  #   volumes:
+  #     - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
+  #     - ./mosquitto/data:/mosquitto/data
+  #     - ./mosquitto/log:/mosquitto/log
+      

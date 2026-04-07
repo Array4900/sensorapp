@@ -1,5 +1,5 @@
 <script lang="ts">
-  import '../../static/registerForm.css';
+  import '../../static/main.css';
   import { goto } from '$app/navigation';
   import { register, isLoading as authLoading } from '$lib/stores/auth';
 

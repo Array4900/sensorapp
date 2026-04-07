@@ -1,5 +1,5 @@
 <script lang="ts">
-  import '../../static/loginForm.css';
+  import '../../static/main.css';
   import { goto } from '$app/navigation';
   import { login, isLoading, authError, clearError } from '$lib/stores/auth';
 
