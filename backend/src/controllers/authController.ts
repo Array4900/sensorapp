@@ -28,11 +28,15 @@ export const registerUser = async (req: Request, res: Response) => {
             });
         }
 
+        // Prvý registrovaný užívateľ je vždy ADMIN
+        const userCount = await User.countDocuments();
+        const role = userCount === 0 ? UserRole.ADMIN : UserRole.USER;
+
         // Vytvor objekt nového užívateľa
         const newUser = new User({
             username,
             password,           // heslo sa zahashuje v User modeli pomocou hooku 'pre save'
-            role: UserRole.USER // defaultná rola je USER
+            role
         });
 
         // ulož užívateľa do MONGODB
@@ -182,7 +186,7 @@ export const logoutUser = async (req: Request, res: Response) => {
             const decoded = jwt.verify(token, secret) as { exp: number };
             
             // Add token to blacklist until it expires
-            blacklistToken(token, decoded.exp);
+            await blacklistToken(token, decoded.exp);
             
             return res.status(200).json({ message: "Logout successful" });
         } catch (jwtError) {

@@ -66,6 +66,7 @@
     
     function getSensorTypeLabel(type: string): string {
         const labels: Record<string, string> = {
+            HladinomerESP: '📊 Hladinomer ESP',
             temperature: '🌡️ Teplota',
             humidity: '💧 Vlhkosť',
             pressure: '📊 Tlak',
@@ -78,6 +79,7 @@
     
     function getSensorUnit(type: string): string {
         const units: Record<string, string> = {
+            HladinomerESP: 'cm',
             temperature: '°C',
             humidity: '%',
             pressure: 'hPa',
@@ -360,7 +362,7 @@
             <div class="sensor-details">
                 <div class="detail-item">
                     <span class="detail-label">📍 Lokácia</span>
-                    <span class="detail-value">{sensor.location?.name || 'Bez lokácie'}</span>
+                    <span class="detail-value">{sensor.location || 'Bez lokácie'}</span>
                 </div>
                 <div class="detail-item">
                     <span class="detail-label">🔧 Typ</span>

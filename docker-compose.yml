@@ -20,8 +20,10 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - MONGO_URI=${MONGO_URI}
       - PORT=${PORT}
+      - MQTT_BROKER_URL=mqtt://mosquitto:1883
     depends_on:
       - db
+      - mosquitto
 
   # 3. Frontend (SvelteKit)
   web:
@@ -31,22 +33,22 @@ services:
       - "5173:5173"
     environment:
       # Pre prehliadač (klient): Volá Windows port
-      - PUBLIC_API_URL=http://localhost:5000/api
+      - PUBLIC_API_URL=http://192.168.1.175:5000/api
       # Pre SvelteKit server (SSR): Volá vnútorný Docker názov "api"
       - INTERNAL_API_URL=http://api:5000/api
     depends_on:
       - api
 
   # 4. MQTT Broker (Mosquitto)
-  # mosquitto:
-  #   image: eclipse-mosquitto:latest
-  #   container_name: mosquitto
-  #   restart: always
-  #   ports:
-  #     - "1883:1883"   # MQTT port
-  #     - "9001:9001"   # WebSockets port
-  #   volumes:
-  #     - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
-  #     - ./mosquitto/data:/mosquitto/data
-  #     - ./mosquitto/log:/mosquitto/log
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: mosquitto
+    restart: always
+    ports:
+      - "1883:1883"   # MQTT port
+      - "9001:9001"   # WebSockets port
+    volumes:
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
       

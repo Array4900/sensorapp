@@ -2,8 +2,8 @@ import type { Request, Response } from 'express';
 import User from '../models/User.js';
 import Sensor from '../models/Sensor.js';
 import Measurement from '../models/Measurement.js';
-import Location from '../models/Location.js';
 import crypto from 'crypto';
+import QRCode from 'qrcode';
 
 interface AuthRequest extends Request {
     user?: { username: string; role: string };
@@ -28,21 +28,10 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
 // Get all sensors (for admin - includes owner info)
 export const getAllSensors = async (req: AuthRequest, res: Response) => {
     try {
-        const sensors = await Sensor.find().populate('location');
+        const sensors = await Sensor.find();
         return res.status(200).json({ sensors });
     } catch (error) {
         console.error('Error fetching sensors:', error);
-        return res.status(500).json({ message: 'Internal server error', error });
-    }
-};
-
-// Get all locations (for admin dashboard)
-export const getAllLocations = async (req: AuthRequest, res: Response) => {
-    try {
-        const locations = await Location.find();
-        return res.status(200).json({ locations });
-    } catch (error) {
-        console.error('Error fetching locations:', error);
         return res.status(500).json({ message: 'Internal server error', error });
     }
 };
@@ -51,22 +40,10 @@ export const getAllLocations = async (req: AuthRequest, res: Response) => {
 export const getSensorsByUser = async (req: AuthRequest, res: Response) => {
     try {
         const { username } = req.params;
-        const sensors = await Sensor.find({ owner: username }).populate('location');
+        const sensors = await Sensor.find({ owner: username });
         return res.status(200).json({ sensors });
     } catch (error) {
         console.error('Error fetching sensors:', error);
-        return res.status(500).json({ message: 'Internal server error', error });
-    }
-};
-
-// Get locations by user
-export const getLocationsByUser = async (req: AuthRequest, res: Response) => {
-    try {
-        const { username } = req.params;
-        const locations = await Location.find({ owner: username });
-        return res.status(200).json({ locations });
-    } catch (error) {
-        console.error('Error fetching locations:', error);
         return res.status(500).json({ message: 'Internal server error', error });
     }
 };
@@ -97,9 +74,6 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
         // Delete all sensors
         await Sensor.deleteMany({ owner: username });
 
-        // Delete all locations
-        const deletedLocations = await Location.deleteMany({ owner: username });
-
         // Delete the user
         await User.deleteOne({ username });
 
@@ -107,7 +81,6 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
             message: 'User and all associated data deleted successfully',
             deleted: {
                 sensors: userSensors.length,
-                locations: deletedLocations.deletedCount,
                 user: username
             }
         });
@@ -167,19 +140,21 @@ export const transferSensorOwnership = async (req: AuthRequest, res: Response) =
             return res.status(400).json({ message: 'Sensor already belongs to this user' });
         }
 
-        // Generate new API key for security
+        // Generate new API key and QR code for security
         const newApiKey = generateApiKey();
+        const newQrCode = await QRCode.toDataURL(newApiKey);
 
-        // Update sensor: change owner, set location to null, generate new API key
+        // Update sensor: change owner, clear location, generate new API key
         const updatedSensor = await Sensor.findByIdAndUpdate(
             id,
             {
                 owner: newOwner,
-                location: null,
-                apiKey: newApiKey
+                location: '',
+                apiKey: newApiKey,
+                qrCode: newQrCode
             },
             { new: true }
-        ).populate('location');
+        );
 
         return res.status(200).json({
             message: `Sensor transferred to ${newOwner} successfully. New API key generated.`,

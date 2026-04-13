@@ -1,32 +1,25 @@
 // token blacklist utilita
-// znehodnoti JWT token pridanim na blacklist
+// znehodnoti JWT token pridanim na blacklist v MongoDB
 // pouziva sa pri logout operacii aby sa zabranilo dalsiemu pouzivaniu tokenu
 
-interface BlacklistedToken {
-    token: string;
-    expiresAt: number;
-}
-
-// mapa na ukladanie znehodnotenych tokenov
-const blacklistedTokens: Map<string, BlacklistedToken> = new Map();
+import BlacklistedToken from '../models/BlacklistedToken.js';
 
 /**
  * Add a token to the blacklist
  * @param token - The JWT token to blacklist
  * @param expiresAt - Token expiration timestamp (in seconds)
  */
-export function blacklistToken(token: string, expiresAt: number): void {
-    blacklistedTokens.set(token, {
-        token,
-        expiresAt: expiresAt * 1000 // Convert to milliseconds
-    });
-    
-    // naplanuj vycistenie tohto tokenu po jeho expiracii
-    const timeUntilExpiry = (expiresAt * 1000) - Date.now();
-    if (timeUntilExpiry > 0) {
-        setTimeout(() => {
-            blacklistedTokens.delete(token);
-        }, timeUntilExpiry);
+export async function blacklistToken(token: string, expiresAt: number): Promise<void> {
+    try {
+        await BlacklistedToken.create({
+            token,
+            expiresAt: new Date(expiresAt * 1000)
+        });
+    } catch (err: any) {
+        // Ignoruj duplicitné tokeny
+        if (err.code !== 11000) {
+            console.error('Chyba pri blacklistovaní tokenu:', err);
+        }
     }
 }
 
@@ -35,32 +28,33 @@ export function blacklistToken(token: string, expiresAt: number): void {
  * @param token - The JWT token to check
  * @returns true if token is blacklisted
  */
-export function isTokenBlacklisted(token: string): boolean {
-    const blacklisted = blacklistedTokens.get(token);
-    
-    if (!blacklisted) {
-        return false;
-    }
-    
-    // Ak token expiroval, odstrani ho z blacklistu
-    if (Date.now() > blacklisted.expiresAt) {
-        blacklistedTokens.delete(token);
-        return false;
-    }
-    
-    return true;
+export async function isTokenBlacklisted(token: string): Promise<boolean> {
+    const blacklisted = await BlacklistedToken.findOne({ token });
+    return !!blacklisted;
 }
 
-
-// tokeny expirujuce po case sa z blacklistu automaticky odmazu
-export function cleanupExpiredTokens(): void {
-    const now = Date.now();
-    for (const [token, data] of blacklistedTokens.entries()) {
-        if (now > data.expiresAt) {
-            blacklistedTokens.delete(token);
-        }
+/**
+ * Vyčistí expirovane tokeny z blacklistu
+ * MongoDB TTL index to robí automaticky, ale toto je záložné čistenie
+ */
+export async function cleanupExpiredTokens(): Promise<void> {
+    const now = new Date();
+    const result = await BlacklistedToken.deleteMany({ expiresAt: { $lt: now } });
+    if (result.deletedCount > 0) {
+        console.log(`Vyčistených ${result.deletedCount} expirovaných tokenov z blacklistu.`);
     }
 }
 
-// kazdu hodinu vycisti expirovane tokeny z blacklistu
-setInterval(cleanupExpiredTokens, 60 * 60 * 1000);
+/**
+ * Spustí pravidelné čistenie expirovaných tokenov
+ * Volá sa pri štarte servera
+ */
+export function startTokenCleanupScheduler(): void {
+    // Vyčisti pri štarte
+    cleanupExpiredTokens().catch(err => console.error('Chyba pri počiatočnom čistení tokenov:', err));
+    
+    // Potom každých 30 minút
+    setInterval(() => {
+        cleanupExpiredTokens().catch(err => console.error('Chyba pri čistení tokenov:', err));
+    }, 30 * 60 * 1000);
+}

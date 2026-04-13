@@ -1,22 +1,17 @@
 <!--
-  Sensors Page - View and manage sensors and locations
-  Users can view their sensors, filter by location, edit sensors, and manage locations
+  Sensors Page - View and manage sensors
+  Admin can create sensors; all users can view their own sensors
 -->
 <script lang="ts">
     import { onMount } from 'svelte';
     import { goto } from '$app/navigation';
-    import { isAuthenticated, user } from '$lib/stores/auth';
+    import { isAuthenticated, isAdmin, user } from '$lib/stores/auth';
     import { 
         getSensors, 
         createSensor, 
         updateSensor,
         deleteSensor, 
-        getLocations,
-        createLocation,
-        updateLocation,
-        deleteLocation,
         type Sensor, 
-        type Location,
         type CreateSensorData 
     } from '$lib/api';
 
@@ -25,53 +20,27 @@
     // ============================================
     
     let sensors: Sensor[] = [];
-    let locations: Location[] = [];
     let loading = true;
     let error = '';
     
-    // Filter state
-    let selectedLocationFilter: string = 'all';
-    
     // Add sensor form state
     let showAddForm = false;
-    let newSensor: CreateSensorData = { name: '', location: '', type: '' };
+    let newSensorName = '';
+    let newSensorLocation = '';
+    let newSensorOwner = '';
     let addError = '';
     let adding = false;
     
     // Edit sensor modal state
     let showEditModal = false;
     let editingSensor: Sensor | null = null;
-    let editSensorData = { name: '', location: '', type: '', isActive: true };
+    let editSensorData = { name: '', location: '', isActive: true };
     let editError = '';
     let editing = false;
     
-    // Location management state
-    let showLocationManager = false;
-    let showAddLocationForm = false;
-    let newLocationName = '';
-    let newLocationDescription = '';
-    let addLocationError = '';
-    let addingLocation = false;
-    
-    // Edit location state
-    let editingLocation: Location | null = null;
-    let editLocationName = '';
-    let editLocationDescription = '';
-    let editLocationError = '';
-    let savingLocation = false;
-    
-    // API key visibility
+    // API key / QR code visibility
     let visibleApiKeys: Set<string> = new Set();
-    
-    // ============================================
-    // COMPUTED
-    // ============================================
-    
-    $: filteredSensors = selectedLocationFilter === 'all' 
-        ? sensors 
-        : selectedLocationFilter === 'none'
-            ? sensors.filter(s => !s.location)
-            : sensors.filter(s => s.location?._id === selectedLocationFilter);
+    let visibleQrCodes: Set<string> = new Set();
     
     // ============================================
     // LIFECYCLE
@@ -94,12 +63,7 @@
         loading = true;
         error = '';
         try {
-            const [sensorsData, locationsData] = await Promise.all([
-                getSensors(),
-                getLocations()
-            ]);
-            sensors = sensorsData;
-            locations = locationsData;
+            sensors = await getSensors();
         } catch (e) {
             error = (e as Error).message || 'Nepodarilo sa načítať dáta';
         } finally {
@@ -114,15 +78,19 @@
         
         try {
             const sensorData: CreateSensorData = {
-                name: newSensor.name,
-                type: newSensor.type
+                name: newSensorName,
             };
-            if (newSensor.location) {
-                sensorData.location = newSensor.location;
+            if (newSensorLocation.trim()) {
+                sensorData.location = newSensorLocation.trim();
+            }
+            if (newSensorOwner.trim()) {
+                sensorData.owner = newSensorOwner.trim();
             }
             const sensor = await createSensor(sensorData);
             sensors = [sensor, ...sensors];
-            newSensor = { name: '', location: '', type: '' };
+            newSensorName = '';
+            newSensorLocation = '';
+            newSensorOwner = '';
             showAddForm = false;
         } catch (e) {
             addError = (e as Error).message || 'Nepodarilo sa vytvoriť senzor';
@@ -135,8 +103,7 @@
         editingSensor = sensor;
         editSensorData = {
             name: sensor.name,
-            location: sensor.location?._id || '',
-            type: sensor.type,
+            location: sensor.location || '',
             isActive: sensor.isActive
         };
         editError = '';
@@ -153,8 +120,7 @@
         try {
             const updatedSensor = await updateSensor(editingSensor._id, {
                 name: editSensorData.name,
-                location: editSensorData.location || undefined,
-                type: editSensorData.type,
+                location: editSensorData.location,
                 isActive: editSensorData.isActive
             });
             sensors = sensors.map(s => s._id === updatedSensor._id ? updatedSensor : s);
@@ -180,72 +146,6 @@
         }
     }
     
-    // Location management functions
-    async function handleAddLocation(e: Event) {
-        e.preventDefault();
-        addLocationError = '';
-        addingLocation = true;
-        
-        try {
-            const location = await createLocation({
-                name: newLocationName,
-                description: newLocationDescription
-            });
-            locations = [...locations, location];
-            newLocationName = '';
-            newLocationDescription = '';
-            showAddLocationForm = false;
-        } catch (e) {
-            addLocationError = (e as Error).message || 'Nepodarilo sa vytvoriť lokáciu';
-        } finally {
-            addingLocation = false;
-        }
-    }
-    
-    function startEditLocation(location: Location) {
-        editingLocation = location;
-        editLocationName = location.name;
-        editLocationDescription = location.description;
-        editLocationError = '';
-    }
-    
-    async function handleSaveLocation() {
-        if (!editingLocation) return;
-        
-        editLocationError = '';
-        savingLocation = true;
-        
-        try {
-            const updated = await updateLocation(editingLocation._id, {
-                name: editLocationName,
-                description: editLocationDescription
-            });
-            locations = locations.map(l => l._id === updated._id ? updated : l);
-            editingLocation = null;
-        } catch (e) {
-            editLocationError = (e as Error).message || 'Nepodarilo sa upraviť lokáciu';
-        } finally {
-            savingLocation = false;
-        }
-    }
-    
-    async function handleDeleteLocation(id: string) {
-        const loc = locations.find(l => l._id === id);
-        if (!confirm(`Naozaj chcete vymazať lokáciu "${loc?.name}"?`)) {
-            return;
-        }
-        
-        try {
-            await deleteLocation(id);
-            locations = locations.filter(l => l._id !== id);
-            if (selectedLocationFilter === id) {
-                selectedLocationFilter = 'all';
-            }
-        } catch (e) {
-            alert((e as Error).message || 'Nepodarilo sa vymazať lokáciu');
-        }
-    }
-    
     function toggleApiKeyVisibility(id: string) {
         if (visibleApiKeys.has(id)) {
             visibleApiKeys.delete(id);
@@ -254,17 +154,18 @@
         }
         visibleApiKeys = visibleApiKeys;
     }
+
+    function toggleQrCodeVisibility(id: string) {
+        if (visibleQrCodes.has(id)) {
+            visibleQrCodes.delete(id);
+        } else {
+            visibleQrCodes.add(id);
+        }
+        visibleQrCodes = visibleQrCodes;
+    }
     
     function copyApiKey(apiKey: string) {
         navigator.clipboard.writeText(apiKey);
-    }
-    
-    function getLocationName(sensor: Sensor): string {
-        return sensor.location?.name || 'Bez lokácie';
-    }
-    
-    function getSensorCountForLocation(locationId: string): number {
-        return sensors.filter(s => s.location?._id === locationId).length;
     }
 </script>
 
@@ -273,7 +174,7 @@
 <!-- ============================================ -->
 <style>
     .sensors-page {
-        padding: var(--space-4);
+        padding: 1.5rem;
         max-width: 1200px;
         margin: 0 auto;
     }
@@ -282,43 +183,38 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: var(--space-6);
+        margin-bottom: 1.5rem;
         flex-wrap: wrap;
-        gap: var(--space-4);
+        gap: 1rem;
     }
     
     .page-title {
-        font-size: var(--font-size-2xl);
+        font-size: 1.5rem;
         font-weight: 700;
-        color: var(--color-text-primary);
-    }
-    
-    .header-actions {
-        display: flex;
-        gap: var(--space-2);
-        flex-wrap: wrap;
+        color: var(--color-text-primary, #1f2937);
     }
     
     .btn {
-        padding: var(--space-2) var(--space-4);
-        border-radius: var(--radius-md);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
         font-weight: 600;
         cursor: pointer;
-        transition: all var(--transition-fast);
+        transition: all 0.15s;
         border: none;
+        font-size: 0.875rem;
     }
     
     .btn-primary {
-        background: var(--color-primary);
+        background: var(--color-primary, #4361ee);
         color: white;
     }
     
     .btn-primary:hover {
-        background: var(--color-primary-dark);
+        background: var(--color-secondary, #3a0ca3);
     }
     
     .btn-danger {
-        background: var(--color-danger, #dc3545);
+        background: #dc3545;
         color: white;
     }
     
@@ -327,223 +223,116 @@
     }
     
     .btn-secondary {
-        background: var(--color-bg-secondary);
-        color: var(--color-text-primary);
-        border: 1px solid var(--color-border);
+        background: var(--color-bg-secondary, #f9fafb);
+        color: var(--color-text-primary, #1f2937);
+        border: 1px solid var(--color-border, #e5e7eb);
     }
     
     .btn-small {
-        padding: var(--space-1) var(--space-2);
-        font-size: var(--font-size-sm);
-    }
-    
-    /* Filter Section */
-    .filter-section {
-        background: var(--color-bg-primary);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-lg);
-        padding: var(--space-4);
-        margin-bottom: var(--space-4);
-        display: flex;
-        align-items: center;
-        gap: var(--space-4);
-        flex-wrap: wrap;
-    }
-    
-    .filter-label {
-        font-weight: 600;
-        color: var(--color-text-secondary);
-    }
-    
-    .filter-select {
-        padding: var(--space-2) var(--space-3);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-md);
-        font-size: var(--font-size-base);
-        min-width: 200px;
-    }
-    
-    .filter-info {
-        color: var(--color-text-secondary);
-        font-size: var(--font-size-sm);
-        margin-left: auto;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.8rem;
     }
     
     /* Forms */
     .form-container {
-        background: var(--color-bg-primary);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-lg);
-        padding: var(--space-6);
-        margin-bottom: var(--space-6);
+        background: white;
+        border: 1px solid var(--color-border, #e5e7eb);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
     }
     
     .form-title {
-        font-size: var(--font-size-lg);
+        font-size: 1.125rem;
         font-weight: 600;
-        margin-bottom: var(--space-4);
-        color: var(--color-text-primary);
+        margin-bottom: 1rem;
+        color: var(--color-text-primary, #1f2937);
     }
     
     .form-grid {
         display: grid;
-        gap: var(--space-4);
+        gap: 1rem;
     }
     
     .form-row {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: var(--space-4);
+        gap: 1rem;
     }
     
     .field {
         display: flex;
         flex-direction: column;
-        gap: var(--space-1);
+        gap: 0.25rem;
     }
     
     .field label {
         font-weight: 500;
-        color: var(--color-text-secondary);
+        color: var(--color-text-secondary, #6b7280);
+        font-size: 0.875rem;
     }
     
-    .field input, .field select, .field textarea {
-        padding: var(--space-2) var(--space-3);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-md);
-        font-size: var(--font-size-base);
+    .field input {
+        padding: 0.5rem 0.75rem;
+        border: 2px solid var(--color-border, #e5e7eb);
+        border-radius: 8px;
+        font-size: 1rem;
     }
-    
-    .field textarea {
-        resize: vertical;
-        min-height: 80px;
+
+    .field input:focus {
+        outline: none;
+        border-color: var(--color-primary, #4361ee);
     }
     
     .form-actions {
         display: flex;
-        gap: var(--space-2);
+        gap: 0.5rem;
         justify-content: flex-end;
-        margin-top: var(--space-4);
+        margin-top: 1rem;
     }
     
     .form-error {
-        color: var(--color-danger, #dc3545);
-        font-size: var(--font-size-sm);
-        margin-bottom: var(--space-2);
-    }
-    
-    /* Location Manager */
-    .location-manager {
-        background: var(--color-bg-primary);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-lg);
-        padding: var(--space-6);
-        margin-bottom: var(--space-6);
-    }
-    
-    .location-manager-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: var(--space-4);
-    }
-    
-    .locations-list {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-3);
-    }
-    
-    .location-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: var(--space-3);
-        background: var(--color-bg-secondary);
-        border-radius: var(--radius-md);
-        gap: var(--space-4);
-    }
-    
-    .location-info {
-        flex: 1;
-    }
-    
-    .location-name {
-        font-weight: 600;
-        color: var(--color-text-primary);
-    }
-    
-    .location-description {
-        font-size: var(--font-size-sm);
-        color: var(--color-text-secondary);
-    }
-    
-    .location-stats {
-        font-size: var(--font-size-sm);
-        color: var(--color-text-muted);
-    }
-    
-    .location-actions {
-        display: flex;
-        gap: var(--space-2);
-    }
-    
-    .location-edit-form {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-2);
-        flex: 1;
-    }
-    
-    .location-edit-row {
-        display: flex;
-        gap: var(--space-2);
-        align-items: center;
-    }
-    
-    .location-edit-row input {
-        flex: 1;
-        padding: var(--space-2);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-sm);
+        color: #dc3545;
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
     }
     
     /* Sensors Grid */
     .sensors-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-        gap: var(--space-4);
+        gap: 1rem;
     }
     
     .sensor-card {
-        background: var(--color-bg-primary);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-lg);
-        padding: var(--space-4);
-        transition: box-shadow var(--transition-fast);
+        background: white;
+        border: 1px solid var(--color-border, #e5e7eb);
+        border-radius: 12px;
+        padding: 1.25rem;
+        transition: box-shadow 0.15s;
     }
     
     .sensor-card:hover {
-        box-shadow: var(--shadow-md);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
     .sensor-header {
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
-        margin-bottom: var(--space-3);
+        margin-bottom: 0.75rem;
     }
     
     .sensor-name {
-        font-size: var(--font-size-lg);
+        font-size: 1.125rem;
         font-weight: 600;
-        color: var(--color-text-primary);
+        color: var(--color-text-primary, #1f2937);
     }
     
     .sensor-status {
-        padding: var(--space-1) var(--space-2);
-        border-radius: var(--radius-full);
-        font-size: var(--font-size-xs);
+        padding: 0.125rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
         font-weight: 600;
     }
     
@@ -559,67 +348,81 @@
     
     .sensor-info {
         display: grid;
-        gap: var(--space-2);
-        margin-bottom: var(--space-4);
+        gap: 0.375rem;
+        margin-bottom: 1rem;
     }
     
     .info-row {
         display: flex;
-        gap: var(--space-2);
+        gap: 0.5rem;
     }
     
     .info-label {
-        color: var(--color-text-secondary);
-        font-size: var(--font-size-sm);
+        color: var(--color-text-secondary, #6b7280);
+        font-size: 0.875rem;
         min-width: 80px;
     }
     
     .info-value {
-        color: var(--color-text-primary);
-        font-size: var(--font-size-sm);
+        color: var(--color-text-primary, #1f2937);
+        font-size: 0.875rem;
     }
     
     .api-key-section {
-        background: var(--color-bg-secondary);
-        padding: var(--space-3);
-        border-radius: var(--radius-md);
-        margin-bottom: var(--space-4);
+        background: var(--color-bg-secondary, #f9fafb);
+        padding: 0.75rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
     }
     
     .api-key-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: var(--space-2);
+        margin-bottom: 0.5rem;
+        flex-wrap: wrap;
+        gap: 0.5rem;
     }
     
     .api-key-label {
-        font-size: var(--font-size-sm);
+        font-size: 0.875rem;
         font-weight: 600;
-        color: var(--color-text-secondary);
+        color: var(--color-text-secondary, #6b7280);
+    }
+
+    .api-key-actions {
+        display: flex;
+        gap: 0.25rem;
+        flex-wrap: wrap;
     }
     
     .api-key-value {
         font-family: monospace;
-        font-size: var(--font-size-sm);
+        font-size: 0.8rem;
         word-break: break-all;
-        background: var(--color-bg-primary);
-        padding: var(--space-2);
-        border-radius: var(--radius-sm);
+        background: white;
+        padding: 0.5rem;
+        border-radius: 4px;
     }
     
     .api-key-hidden {
-        color: var(--color-text-muted);
+        color: var(--color-text-muted, #9ca3af);
     }
-    
-    .api-key-actions {
-        display: flex;
-        gap: var(--space-2);
+
+    .qr-code-container {
+        text-align: center;
+        margin-top: 0.5rem;
+    }
+
+    .qr-code-container img {
+        max-width: 200px;
+        border: 1px solid var(--color-border, #e5e7eb);
+        border-radius: 8px;
     }
     
     .sensor-actions {
         display: flex;
-        gap: var(--space-2);
+        gap: 0.5rem;
         justify-content: flex-end;
     }
     
@@ -638,9 +441,9 @@
     }
     
     .modal {
-        background: var(--color-bg-primary);
-        border-radius: var(--radius-lg);
-        padding: var(--space-6);
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
         max-width: 500px;
         width: 90%;
         max-height: 90vh;
@@ -651,11 +454,11 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: var(--space-4);
+        margin-bottom: 1rem;
     }
     
     .modal-title {
-        font-size: var(--font-size-xl);
+        font-size: 1.25rem;
         font-weight: 600;
     }
     
@@ -664,13 +467,13 @@
         border: none;
         font-size: 1.5rem;
         cursor: pointer;
-        color: var(--color-text-secondary);
+        color: var(--color-text-secondary, #6b7280);
     }
     
     .checkbox-field {
         display: flex;
         align-items: center;
-        gap: var(--space-2);
+        gap: 0.5rem;
     }
     
     .checkbox-field input {
@@ -680,17 +483,17 @@
     /* Loading & Error States */
     .loading-container, .error-container, .empty-state {
         text-align: center;
-        padding: var(--space-12);
+        padding: 3rem;
     }
     
     .loading-spinner {
         width: 40px;
         height: 40px;
-        border: 3px solid var(--color-border);
-        border-top-color: var(--color-primary);
+        border: 3px solid var(--color-border, #e5e7eb);
+        border-top-color: var(--color-primary, #4361ee);
         border-radius: 50%;
         animation: spin 1s linear infinite;
-        margin: 0 auto var(--space-4);
+        margin: 0 auto 1rem;
     }
     
     @keyframes spin {
@@ -699,13 +502,13 @@
     
     .empty-icon {
         font-size: 4rem;
-        margin-bottom: var(--space-4);
+        margin-bottom: 1rem;
     }
-    
-    .no-locations {
-        text-align: center;
-        padding: var(--space-4);
-        color: var(--color-text-secondary);
+
+    @media (max-width: 768px) {
+        .sensors-grid {
+            grid-template-columns: 1fr;
+        }
     }
 </style>
 
@@ -715,94 +518,19 @@
 <div class="sensors-page">
     <div class="page-header">
         <h1 class="page-title">📡 Moje senzory</h1>
-        <div class="header-actions">
-            <button class="btn btn-secondary" on:click={() => showLocationManager = !showLocationManager}>
-                {showLocationManager ? '✕ Zavrieť lokácie' : '📍 Spravovať lokácie'}
-            </button>
-            <button class="btn btn-primary" on:click={() => showAddForm = !showAddForm}>
-                {showAddForm ? '✕ Zrušiť' : '+ Pridať senzor'}
-            </button>
+        <div>
+            {#if $isAdmin}
+                <button class="btn btn-primary" on:click={() => showAddForm = !showAddForm}>
+                    {showAddForm ? '✕ Zrušiť' : '+ Pridať senzor'}
+                </button>
+            {/if}
         </div>
     </div>
     
-    <!-- Location Manager -->
-    {#if showLocationManager}
-        <div class="location-manager">
-            <div class="location-manager-header">
-                <h3 class="form-title">📍 Moje lokácie</h3>
-                <button class="btn btn-small btn-primary" on:click={() => showAddLocationForm = !showAddLocationForm}>
-                    {showAddLocationForm ? '✕' : '+ Nová lokácia'}
-                </button>
-            </div>
-            
-            {#if showAddLocationForm}
-                <form class="form-grid" style="margin-bottom: var(--space-4);" on:submit={handleAddLocation}>
-                    {#if addLocationError}
-                        <div class="form-error">{addLocationError}</div>
-                    {/if}
-                    <div class="form-row">
-                        <div class="field">
-                            <label for="newLocName">Názov lokácie</label>
-                            <input id="newLocName" type="text" bind:value={newLocationName} placeholder="Napr. Obývačka" required />
-                        </div>
-                        <div class="field">
-                            <label for="newLocDesc">Popis (voliteľný)</label>
-                            <input id="newLocDesc" type="text" bind:value={newLocationDescription} placeholder="Popis lokácie" />
-                        </div>
-                    </div>
-                    <div class="form-actions">
-                        <button type="button" class="btn btn-secondary btn-small" on:click={() => showAddLocationForm = false}>Zrušiť</button>
-                        <button type="submit" class="btn btn-primary btn-small" disabled={addingLocation}>
-                            {addingLocation ? 'Vytváram...' : 'Vytvoriť'}
-                        </button>
-                    </div>
-                </form>
-            {/if}
-            
-            {#if locations.length === 0}
-                <div class="no-locations">Zatiaľ nemáte žiadne lokácie. Vytvorte si prvú!</div>
-            {:else}
-                <div class="locations-list">
-                    {#each locations as location (location._id)}
-                        <div class="location-item">
-                            {#if editingLocation?._id === location._id}
-                                <div class="location-edit-form">
-                                    {#if editLocationError}
-                                        <div class="form-error">{editLocationError}</div>
-                                    {/if}
-                                    <div class="location-edit-row">
-                                        <input type="text" bind:value={editLocationName} placeholder="Názov" />
-                                        <input type="text" bind:value={editLocationDescription} placeholder="Popis" />
-                                        <button class="btn btn-small btn-primary" on:click={handleSaveLocation} disabled={savingLocation}>
-                                            {savingLocation ? '...' : '✓'}
-                                        </button>
-                                        <button class="btn btn-small btn-secondary" on:click={() => editingLocation = null}>✕</button>
-                                    </div>
-                                </div>
-                            {:else}
-                                <div class="location-info">
-                                    <div class="location-name">{location.name}</div>
-                                    {#if location.description}
-                                        <div class="location-description">{location.description}</div>
-                                    {/if}
-                                    <div class="location-stats">📡 {getSensorCountForLocation(location._id)} senzorov</div>
-                                </div>
-                                <div class="location-actions">
-                                    <button class="btn btn-small btn-secondary" on:click={() => startEditLocation(location)}>✏️</button>
-                                    <button class="btn btn-small btn-danger" on:click={() => handleDeleteLocation(location._id)}>🗑️</button>
-                                </div>
-                            {/if}
-                        </div>
-                    {/each}
-                </div>
-            {/if}
-        </div>
-    {/if}
-    
-    <!-- Add Sensor Form -->
-    {#if showAddForm}
+    <!-- Add Sensor Form (admin only) -->
+    {#if showAddForm && $isAdmin}
         <div class="form-container">
-            <h3 class="form-title">Nový senzor</h3>
+            <h3 class="form-title">Nový senzor (HladinomerESP)</h3>
             {#if addError}
                 <div class="form-error">{addError}</div>
             {/if}
@@ -813,31 +541,28 @@
                         <input 
                             id="name" 
                             type="text" 
-                            bind:value={newSensor.name} 
-                            placeholder="Napr. Teplomer obývačka"
+                            bind:value={newSensorName} 
+                            placeholder="Napr. Hladinomer nádrž 1"
                             required
                         />
                     </div>
                     <div class="field">
-                        <label for="location">Lokácia (voliteľná)</label>
-                        <select id="location" bind:value={newSensor.location}>
-                            <option value="">Bez lokácie</option>
-                            {#each locations as loc}
-                                <option value={loc._id}>{loc.name}</option>
-                            {/each}
-                        </select>
+                        <label for="location">Umiestnenie (voliteľné)</label>
+                        <input 
+                            id="location" 
+                            type="text" 
+                            bind:value={newSensorLocation} 
+                            placeholder="Napr. Pivnica, Záhrada..."
+                        />
                     </div>
                     <div class="field">
-                        <label for="type">Typ</label>
-                        <select id="type" bind:value={newSensor.type} required>
-                            <option value="">Vyberte typ</option>
-                            <option value="temperature">Teplota</option>
-                            <option value="humidity">Vlhkosť</option>
-                            <option value="pressure">Tlak</option>
-                            <option value="level">Hladina</option>
-                            <option value="motion">Pohyb</option>
-                            <option value="other">Iné</option>
-                        </select>
+                        <label for="owner">Vlastník (voliteľný)</label>
+                        <input 
+                            id="owner" 
+                            type="text" 
+                            bind:value={newSensorOwner} 
+                            placeholder="Username (inak vy)"
+                        />
                     </div>
                 </div>
                 <div class="form-actions">
@@ -849,23 +574,6 @@
                     </button>
                 </div>
             </form>
-        </div>
-    {/if}
-    
-    <!-- Filter Section -->
-    {#if !loading && sensors.length > 0}
-        <div class="filter-section">
-            <span class="filter-label">📍 Filtrovať podľa lokácie:</span>
-            <select class="filter-select" bind:value={selectedLocationFilter}>
-                <option value="all">Všetky senzory</option>
-                <option value="none">Bez lokácie</option>
-                {#each locations as loc}
-                    <option value={loc._id}>{loc.name}</option>
-                {/each}
-            </select>
-            <span class="filter-info">
-                Zobrazených: {filteredSensors.length} z {sensors.length} senzorov
-            </span>
         </div>
     {/if}
     
@@ -886,18 +594,16 @@
         <div class="empty-state">
             <div class="empty-icon">📡</div>
             <h2>Zatiaľ nemáte žiadne senzory</h2>
-            <p>Pridajte svoj prvý senzor kliknutím na tlačidlo vyššie.</p>
+            {#if $isAdmin}
+                <p>Pridajte svoj prvý senzor kliknutím na tlačidlo vyššie.</p>
+            {:else}
+                <p>Kontaktujte administrátora pre vytvorenie senzora.</p>
+            {/if}
         </div>
     <!-- Sensors Grid -->
-    {:else if filteredSensors.length === 0}
-        <div class="empty-state">
-            <div class="empty-icon">🔍</div>
-            <h2>Žiadne senzory v tejto lokácii</h2>
-            <p>Zmeňte filter alebo pridajte senzor do tejto lokácie.</p>
-        </div>
     {:else}
         <div class="sensors-grid">
-            {#each filteredSensors as sensor (sensor._id)}
+            {#each sensors as sensor (sensor._id)}
                 <div class="sensor-card">
                     <div class="sensor-header">
                         <span class="sensor-name">{sensor.name}</span>
@@ -909,11 +615,15 @@
                     <div class="sensor-info">
                         <div class="info-row">
                             <span class="info-label">📍 Lokácia:</span>
-                            <span class="info-value">{getLocationName(sensor)}</span>
+                            <span class="info-value">{sensor.location || 'Nezadaná'}</span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">🔧 Typ:</span>
                             <span class="info-value">{sensor.type}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">👤 Vlastník:</span>
+                            <span class="info-value">{sensor.owner}</span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">📅 Vytvorené:</span>
@@ -929,14 +639,22 @@
                                     class="btn btn-small btn-secondary" 
                                     on:click={() => toggleApiKeyVisibility(sensor._id)}
                                 >
-                                    {visibleApiKeys.has(sensor._id) ? '👁️ Skryť' : '👁️ Zobraziť'}
+                                    {visibleApiKeys.has(sensor._id) ? '🔒 Skryť' : '👁️ Zobraziť'}
                                 </button>
-                                <button 
-                                    class="btn btn-small btn-secondary" 
-                                    on:click={() => copyApiKey(sensor.apiKey)}
-                                >
-                                    📋 Kopírovať
-                                </button>
+                                {#if visibleApiKeys.has(sensor._id)}
+                                    <button 
+                                        class="btn btn-small btn-secondary" 
+                                        on:click={() => copyApiKey(sensor.apiKey)}
+                                    >
+                                        📋 Kopírovať
+                                    </button>
+                                    <button 
+                                        class="btn btn-small btn-secondary" 
+                                        on:click={() => toggleQrCodeVisibility(sensor._id)}
+                                    >
+                                        {visibleQrCodes.has(sensor._id) ? '✕ QR' : '📱 QR kód'}
+                                    </button>
+                                {/if}
                             </div>
                         </div>
                         <div class="api-key-value">
@@ -946,6 +664,11 @@
                                 <span class="api-key-hidden">••••••••••••••••••••••••</span>
                             {/if}
                         </div>
+                        {#if visibleQrCodes.has(sensor._id) && sensor.qrCode}
+                            <div class="qr-code-container">
+                                <img src={sensor.qrCode} alt="QR kód API kľúča" />
+                            </div>
+                        {/if}
                     </div>
                     
                     <div class="sensor-actions">
@@ -977,7 +700,7 @@
 <!-- Edit Sensor Modal -->
 {#if showEditModal && editingSensor}
     <div class="modal-overlay" on:click={() => showEditModal = false} on:keydown={(e) => e.key === 'Escape' && (showEditModal = false)} role="dialog" aria-modal="true" tabindex="-1">
-        <div class="modal" tabindex="0" role="dialog" aria-modal="true" on:click|stopPropagation on:keydown|stopPropagation>
+        <div class="modal" on:click|stopPropagation on:keydown|stopPropagation role="dialog" aria-modal="true" tabindex="0">
             <div class="modal-header">
                 <h2 class="modal-title">✏️ Upraviť senzor</h2>
                 <button class="modal-close" on:click={() => showEditModal = false}>&times;</button>
@@ -994,25 +717,8 @@
                 </div>
                 
                 <div class="field">
-                    <label for="editLocation">Lokácia</label>
-                    <select id="editLocation" bind:value={editSensorData.location}>
-                        <option value="">Bez lokácie</option>
-                        {#each locations as loc}
-                            <option value={loc._id}>{loc.name}</option>
-                        {/each}
-                    </select>
-                </div>
-                
-                <div class="field">
-                    <label for="editType">Typ</label>
-                    <select id="editType" bind:value={editSensorData.type} required>
-                        <option value="temperature">Teplota</option>
-                        <option value="humidity">Vlhkosť</option>
-                        <option value="pressure">Tlak</option>
-                        <option value="level">Hladina</option>
-                        <option value="motion">Pohyb</option>
-                        <option value="other">Iné</option>
-                    </select>
+                    <label for="editLocation">Umiestnenie</label>
+                    <input id="editLocation" type="text" bind:value={editSensorData.location} placeholder="Napr. Pivnica, Záhrada..." />
                 </div>
                 
                 <div class="field checkbox-field">

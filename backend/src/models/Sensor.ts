@@ -7,13 +7,14 @@ const sensorSchema = new mongoose.Schema(
             required: true
         },
         location: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Location',
-            required: false
+            type: String,
+            required: false,
+            default: ''
         },
         type: {
             type: String,
-            required: true
+            required: true,
+            default: 'HladinomerESP'
         },
         owner: {
             type: String,
@@ -25,6 +26,12 @@ const sensorSchema = new mongoose.Schema(
             type: String,
             required: true,
             unique: true
+        },
+        // QR kod API klucu ulozeny ako base64 PNG obrázok
+        qrCode: {
+            type: String,
+            required: false,
+            default: ''
         },
         isActive: {
             type: Boolean,

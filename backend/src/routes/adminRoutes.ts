@@ -4,9 +4,7 @@ import { requireAdmin } from '../middleware/adminMiddleWare.js';
 import { 
     getAllUsers, 
     getAllSensors,
-    getAllLocations,
     getSensorsByUser,
-    getLocationsByUser,
     deleteUser, 
     adminDeleteSensor,
     transferSensorOwnership
@@ -27,9 +25,5 @@ router.get('/sensors', getAllSensors);
 router.get('/users/:username/sensors', getSensorsByUser);
 router.delete('/sensors/:id', adminDeleteSensor);
 router.put('/sensors/:id/transfer', transferSensorOwnership);
-
-// Location management
-router.get('/locations', getAllLocations);
-router.get('/users/:username/locations', getLocationsByUser);
 
 export default router;

@@ -1,5 +1,5 @@
 <!--
-  Admin Page - User, sensor and location management for administrators
+  Admin Page - User and sensor management for administrators
 -->
 <script lang="ts">
     import { onMount } from 'svelte';
@@ -8,15 +8,12 @@
     import { 
         getAllUsers, 
         getAllSensors, 
-        getAllLocations,
         getUserSensors, 
-        getUserLocations,
         deleteUser, 
         adminDeleteSensor,
         transferSensorOwnership,
         type User, 
-        type Sensor,
-        type Location 
+        type Sensor 
     } from '$lib/api';
 
     // ============================================
@@ -25,18 +22,16 @@
     
     let users: User[] = [];
     let allSensors: Sensor[] = [];
-    let allLocations: Location[] = [];
     let loading = true;
     let error = '';
     
     // Expanded user details
     let expandedUser: string | null = null;
     let userSensors: Record<string, Sensor[]> = {};
-    let userLocations: Record<string, Location[]> = {};
     let loadingUserData: string | null = null;
     
     // Active tab
-    let activeTab: 'users' | 'sensors' | 'locations' = 'users';
+    let activeTab: 'users' | 'sensors' = 'users';
     
     // Transfer state
     let transferringId: string | null = null;
@@ -67,14 +62,12 @@
         loading = true;
         error = '';
         try {
-            const [usersData, sensorsData, locationsData] = await Promise.all([
+            const [usersData, sensorsData] = await Promise.all([
                 getAllUsers(),
-                getAllSensors(),
-                getAllLocations()
+                getAllSensors()
             ]);
             users = usersData;
             allSensors = sensorsData;
-            allLocations = locationsData;
         } catch (e) {
             error = (e as Error).message || 'Nepodarilo sa načítať dáta';
         } finally {
@@ -91,19 +84,14 @@
         expandedUser = username;
         
         // Load user data if not cached
-        if (!userSensors[username] || !userLocations[username]) {
+        if (!userSensors[username]) {
             loadingUserData = username;
             try {
-                const [sensors, locations] = await Promise.all([
-                    getUserSensors(username),
-                    getUserLocations(username)
-                ]);
+                const sensors = await getUserSensors(username);
                 userSensors[username] = sensors;
-                userLocations[username] = locations;
             } catch (e) {
                 console.error('Failed to load user data:', e);
                 userSensors[username] = [];
-                userLocations[username] = [];
             } finally {
                 loadingUserData = null;
             }
@@ -116,7 +104,7 @@
             return;
         }
         
-        if (!confirm(`Naozaj chcete vymazať používateľa "${username}" a všetky jeho senzory, lokácie a merania?`)) {
+        if (!confirm(`Naozaj chcete vymazať používateľa "${username}" a všetky jeho senzory a merania?`)) {
             return;
         }
         
@@ -124,9 +112,7 @@
             await deleteUser(username);
             users = users.filter(u => u.username !== username);
             allSensors = allSensors.filter(s => s.owner !== username);
-            allLocations = allLocations.filter(l => l.owner !== username);
             delete userSensors[username];
-            delete userLocations[username];
             if (expandedUser === username) {
                 expandedUser = null;
             }
@@ -189,17 +175,7 @@
         return allSensors.filter(s => s.owner === username).length;
     }
     
-    function getLocationCountForUser(username: string): number {
-        return allLocations.filter(l => l.owner === username).length;
-    }
-    
-    function getLocationName(sensor: Sensor): string {
-        return sensor.location?.name || 'Bez lokácie';
-    }
-    
-    function getSensorCountForLocation(locationId: string): number {
-        return allSensors.filter(s => s.location?._id === locationId).length;
-    }
+
 </script>
 
 <!-- ============================================ -->
@@ -576,7 +552,7 @@
 <div class="admin-page">
     <div class="page-header">
         <h1 class="page-title">⚙️ Administrácia</h1>
-        <p class="page-subtitle">Správa používateľov, senzorov a lokácií</p>
+        <p class="page-subtitle">Správa používateľov a senzorov</p>
     </div>
     
     {#if loading}
@@ -601,10 +577,6 @@
                 <div class="stat-label">Senzory</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">{allLocations.length}</div>
-                <div class="stat-label">Lokácie</div>
-            </div>
-            <div class="stat-card">
                 <div class="stat-value">{allSensors.filter(s => s.isActive).length}</div>
                 <div class="stat-label">Aktívne senzory</div>
             </div>
@@ -626,13 +598,6 @@
             >
                 📡 Všetky senzory ({allSensors.length})
             </button>
-            <button 
-                class="tab" 
-                class:active={activeTab === 'locations'}
-                on:click={() => activeTab = 'locations'}
-            >
-                📍 Všetky lokácie ({allLocations.length})
-            </button>
         </div>
         
         <!-- Users Tab -->
@@ -648,7 +613,6 @@
                                     <div class="user-meta">
                                         <span>📅 {formatDate(user.createdAt)}</span>
                                         <span>📡 {getSensorCountForUser(user.username)} senzorov</span>
-                                        <span>📍 {getLocationCountForUser(user.username)} lokácií</span>
                                     </div>
                                 </div>
                             </div>
@@ -673,35 +637,6 @@
                                 {#if loadingUserData === user.username}
                                     <div class="loading-spinner loading-small"></div>
                                 {:else}
-                                    <!-- User Locations -->
-                                    <div class="data-section">
-                                        <h4 class="data-title">📍 Lokácie používateľa</h4>
-                                        {#if userLocations[user.username]?.length === 0}
-                                            <div class="no-data">Používateľ nemá žiadne lokácie</div>
-                                        {:else if userLocations[user.username]}
-                                            <table class="data-table">
-                                                <thead>
-                                                    <tr>
-                                                        <th>Názov</th>
-                                                        <th>Popis</th>
-                                                        <th>Počet senzorov</th>
-                                                        <th>Vytvorené</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {#each userLocations[user.username] as location (location._id)}
-                                                        <tr>
-                                                            <td>{location.name}</td>
-                                                            <td>{location.description || '-'}</td>
-                                                            <td>{getSensorCountForLocation(location._id)}</td>
-                                                            <td>{formatDate(location.createdAt)}</td>
-                                                        </tr>
-                                                    {/each}
-                                                </tbody>
-                                            </table>
-                                        {/if}
-                                    </div>
-                                    
                                     <!-- User Sensors -->
                                     <div class="data-section">
                                         <h4 class="data-title">📡 Senzory používateľa</h4>
@@ -722,7 +657,7 @@
                                                     {#each userSensors[user.username] as sensor (sensor._id)}
                                                         <tr>
                                                             <td>{sensor.name}</td>
-                                                            <td>{getLocationName(sensor)}</td>
+                                                    <td>{sensor.location || 'Bez lokácie'}</td>
                                                             <td>{sensor.type}</td>
                                                             <td>
                                                                 <span class="sensor-status" class:status-active={sensor.isActive} class:status-inactive={!sensor.isActive}>
@@ -779,7 +714,7 @@
                                 <tr>
                                     <td>{sensor.name}</td>
                                     <td>{sensor.owner}</td>
-                                    <td>{getLocationName(sensor)}</td>
+                                    <td>{sensor.location || 'Bez lokácie'}</td>
                                     <td>{sensor.type}</td>
                                     <td>
                                         <span class="sensor-status" class:status-active={sensor.isActive} class:status-inactive={!sensor.isActive}>
@@ -825,40 +760,5 @@
             </div>
         {/if}
         
-        <!-- Locations Tab -->
-        {#if activeTab === 'locations'}
-            <div class="section-container">
-                <div class="section-header">
-                    <h2 class="section-title">📍 Všetky lokácie v systéme</h2>
-                </div>
-                
-                {#if allLocations.length === 0}
-                    <div class="no-data">V systéme nie sú žiadne lokácie</div>
-                {:else}
-                    <table class="all-data-table">
-                        <thead>
-                            <tr>
-                                <th>Názov</th>
-                                <th>Vlastník</th>
-                                <th>Popis</th>
-                                <th>Počet senzorov</th>
-                                <th>Vytvorené</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {#each allLocations as location (location._id)}
-                                <tr>
-                                    <td>{location.name}</td>
-                                    <td>{location.owner}</td>
-                                    <td>{location.description || '-'}</td>
-                                    <td>{getSensorCountForLocation(location._id)}</td>
-                                    <td>{formatDate(location.createdAt)}</td>
-                                </tr>
-                            {/each}
-                        </tbody>
-                    </table>
-                {/if}
-            </div>
-        {/if}
     {/if}
 </div>
