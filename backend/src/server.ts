@@ -8,7 +8,10 @@ import authRoutes from './routes/authRoute.js';
 import sensorRoutes from './routes/sensorRoutes.js';
 import measurementRoutes from './routes/measurementRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import pushRoutes from './routes/pushRoutes.js';
 import { startTokenCleanupScheduler } from './utils/tokenBlacklist.js';
+import { configurePushNotifications } from './utils/pushNotifications.js';
+import { handleThresholdNotification, startDailySensorNotificationScheduler } from './utils/sensorNotifications.js';
 import Sensor from './models/Sensor.js';
 import Measurement from './models/Measurement.js';
 
@@ -28,6 +31,7 @@ dotenv.config();
 console.log("Moja URI:", process.env.MONGO_URI);
 console.log("Moja PORT:", process.env.PORT);
 console.log("DEBUG: Používam secret:", process.env.JWT_SECRET ? "Kľúč načítaný" : "KĽÚČ CHÝBA (UNDEFINED)!");
+configurePushNotifications();
 app.use(express.json());
 
 try {
@@ -35,6 +39,7 @@ try {
 
     // Spusti pravidelné čistenie expirovaných tokenov z blacklistu
     startTokenCleanupScheduler();
+    startDailySensorNotificationScheduler();
 
     let port = parseInt(process.env.PORT as string, 10);
     app.listen( port , '0.0.0.0',() => {
@@ -50,6 +55,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/sensors', sensorRoutes);
 app.use('/api/measurements', measurementRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/push', pushRoutes);
 
 
 // ============================================
@@ -99,15 +105,36 @@ mqttClient.on('message', async (topic: string, message: Buffer) => {
                 return;
             }
 
+            const distanceCm = parseFloat(distance);
+            if (Number.isNaN(distanceCm)) {
+                console.warn('MQTT: distance nie je číslo:', payload);
+                return;
+            }
+
+            if (distanceCm < 21 || distanceCm > 580) {
+                console.warn(`MQTT: Meranie mimo povoleného rozsahu bolo zamietnuté (${distanceCm} cm) pre senzor ${sensor.name}`);
+                mqttClient.publish(`${MQTT_TOPIC_ACK_PREFIX}${apiKey}`, JSON.stringify({
+                    status: 'rejected',
+                    message: 'Meranie je mimo povoleného rozsahu 21-580 cm'
+                }));
+                return;
+            }
+
             const newMeasurement = new Measurement({
                 sensor: sensor._id,
-                value: parseFloat(distance),
+                value: distanceCm,
                 unit: 'cm',
                 timestamp: new Date()
             });
 
             await newMeasurement.save();
             console.log(`MQTT: Meranie uložené - senzor: ${sensor.name}, vzdialenosť: ${distance} cm`);
+
+            try {
+                await handleThresholdNotification(sensor, distanceCm);
+            } catch (notificationError) {
+                console.error(`MQTT: Prahová notifikácia zlyhala pre senzor ${sensor.name}:`, notificationError);
+            }
 
             // Odošli ACK späť na topic sensor/ack/<apiKey>
             mqttClient.publish(`${MQTT_TOPIC_ACK_PREFIX}${apiKey}`, JSON.stringify({

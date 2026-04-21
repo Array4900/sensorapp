@@ -6,7 +6,7 @@
     import { goto } from '$app/navigation';
     import { isAuthenticated, isAdmin, user } from '$lib/stores/auth';
     import { isOnline } from '$lib/stores/offline';
-    import { getSensors, getSensorMeasurements, type Sensor, type Measurement } from '$lib/api';
+    import { getSensors, getSensorMeasurements, getSentNotifications, type Sensor, type Measurement, type SentNotification } from '$lib/api';
 
     interface LegendItem {
         label: string;
@@ -25,6 +25,7 @@
     let loadingMeasurements = false;
     let error = '';
     let offline = false;
+    let notifications: SentNotification[] = [];
 
     // Canvas references
     let distanceCanvas: HTMLCanvasElement;
@@ -74,7 +75,13 @@
         loading = true;
         error = '';
         try {
-            sensors = await getSensors();
+            const [sensorData, notificationData] = await Promise.all([
+                getSensors(),
+                getSentNotifications()
+            ]);
+
+            sensors = sensorData;
+            notifications = notificationData;
             if (sensors.length > 0) {
                 selectedSensorId = sensors[0]._id;
                 await loadMeasurements();
@@ -118,6 +125,12 @@
     function formatShortDate(dateStr: string): string {
         const d = new Date(dateStr);
         return `${d.getDate()}.${d.getMonth()+1} ${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
+    }
+
+    function formatNotificationCategory(category: SentNotification['category']): string {
+        if (category === 'threshold') return 'Prahové upozornenie';
+        if (category === 'daily') return 'Denný prehľad';
+        return 'Manuálne odoslanie';
     }
 
     function calculatePercent(distanceCm: number): number {
@@ -626,6 +639,49 @@
         font-style: italic;
     }
 
+    .notification-list {
+        display: grid;
+        gap: 0.9rem;
+    }
+
+    .notification-item {
+        padding: 1rem 1.1rem;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.82);
+        border: 1px solid rgba(252, 165, 165, 0.4);
+    }
+
+    .notification-item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 0.35rem;
+        flex-wrap: wrap;
+    }
+
+    .notification-item-header strong {
+        color: #7f1d1d;
+    }
+
+    .notification-meta {
+        color: #991b1b;
+        font-size: 0.82rem;
+        font-weight: 600;
+    }
+
+    .notification-body {
+        margin: 0;
+        color: #450a0a;
+        line-height: 1.5;
+    }
+
+    .notification-footnote {
+        margin-top: 0.5rem;
+        color: #7f1d1d;
+        font-size: 0.8rem;
+    }
+
     /* Loading & Error States */
     .loading-container, .error-container, .empty-state {
         text-align: center;
@@ -806,9 +862,28 @@
                 <span class="danger-icon">⚠️</span>
                 <h3>Poruchy a upozornenia</h3>
             </div>
-            <div class="no-failures">
-                Žiadne poruchy neboli detekované. Detekcia porúch bude doplnená v budúcnosti.
-            </div>
+            {#if notifications.length === 0}
+                <div class="no-failures">
+                    Zatiaľ nebola odoslaná žiadna notifikácia.
+                </div>
+            {:else}
+                <div class="notification-list">
+                    {#each notifications as notification (notification._id)}
+                        <article class="notification-item">
+                            <div class="notification-item-header">
+                                <strong>{notification.title}</strong>
+                                <span class="notification-meta">{formatDate(notification.createdAt)}</span>
+                            </div>
+                            <p class="notification-body">{notification.body}</p>
+                            <div class="notification-footnote">
+                                {formatNotificationCategory(notification.category)}
+                                {#if notification.sensorName} • {notification.sensorName}{/if}
+                                • doručené zariadenia: {notification.deliveredCount}
+                            </div>
+                        </article>
+                    {/each}
+                </div>
+            {/if}
         </div>
     {/if}
 </div>

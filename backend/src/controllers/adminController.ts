@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import User from '../models/User.js';
 import Sensor from '../models/Sensor.js';
 import Measurement from '../models/Measurement.js';
+import PushSubscription from '../models/PushSubscription.js';
 import crypto from 'crypto';
 import QRCode from 'qrcode';
 
@@ -73,6 +74,9 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
 
         // Delete all sensors
         await Sensor.deleteMany({ owner: username });
+
+        // Delete push subscriptions for the user
+        await PushSubscription.deleteMany({ username });
 
         // Delete the user
         await User.deleteOne({ username });

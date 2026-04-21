@@ -24,6 +24,9 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - MONGO_URI=${MONGO_URI}
       - PORT=${PORT}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
+      - VAPID_EMAIL=${VAPID_EMAIL}
 
       - MQTT_BROKER_URL=${MQTT_BROKER_URL}
       - MQTT_TOPIC=${MQTT_TOPIC}
@@ -44,9 +47,11 @@ services:
       - "3000:3000"
     environment:
       # Prehliadač teraz volá verejnú Cloudflare adresu - produkcia
-      #- PUBLIC_API_URL=https://api.sahur.sk/api
+      - PUBLIC_API_URL=https://api.sahur.sk/api
       # Pre testovanie a vývoj, keď beží všetko lokálne, môžeme použiť internú Docker sieť
-      - PUBLIC_API_URL=http://localhost:5000/api
+      #- PUBLIC_API_URL=http://localhost:5000/api
+
+      - PUBLIC_VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
       # SvelteKit server (SSR) stále volá backend interne cez Docker sieť
       - INTERNAL_API_URL=http://sensor_api:5000/api
     depends_on:
@@ -69,17 +74,17 @@ services:
       - ./mosquitto/log:/mosquitto/log
     networks:
       - sensor-network
-  # tunnel:
-  #   container_name: cloudflared-tunnel
-  #   image: cloudflare/cloudflared:latest
-  #   restart: always
-  #   environment:
-  #     - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
-  #   command: tunnel run
-  #   depends_on:
-  #     - api  # Tunel sa spustí až keď beží backend
-  #   networks:
-  #     - sensor-network
+  tunnel:
+    container_name: cloudflared-tunnel
+    image: cloudflare/cloudflared:latest
+    restart: always
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    command: tunnel run
+    depends_on:
+      - api  # Tunel sa spustí až keď beží backend
+    networks:
+      - sensor-network
 
 networks:
   sensor-network:

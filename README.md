@@ -1,8 +1,11 @@
 Dôležité: na to, aby backend fungoval treba vytvoriť .env súbor v sensorapp/, kde sa pridá sekcia:
 ```
 JWT_SECRET=<moj_tajny_kluc>
-MONGODB_URI=mongodb://db:27017/sensorapp
+MONGO_URI=mongodb://db:27017/sensorapp
 PORT=5000
+VAPID_PUBLIC_KEY=<tvoj_verejny_vapid_kluc>
+VAPID_PRIVATE_KEY=<tvoj_sukromny_vapid_kluc>
+VAPID_EMAIL=mailto:you@example.com
 ```
 
 .env súbor nie je súčasťou repozitára z dôvodu bezpečnosti.

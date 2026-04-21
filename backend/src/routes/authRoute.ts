@@ -7,7 +7,10 @@ const router = express.Router();
 // create
 router.post('/register', async (req, res) => {
     try {
-        await registerUser(req, res);
+        // await registerUser(req, res);
+        return res.status(403).json({ 
+        message: 'Registrácia nových používateľov je momentálne zakázaná.' 
+    });
     } catch (error) {
         res.status(400).json({ error: 'Error creating user', details: error });
     }

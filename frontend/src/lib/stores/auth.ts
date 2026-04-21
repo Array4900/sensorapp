@@ -210,6 +210,32 @@ function clearPersistedAuth(): void {
     }
 }
 
+async function syncPushSubscriptionForToken(token: string): Promise<void> {
+    if (!browser || !token) {
+        return;
+    }
+
+    try {
+        const { syncExistingPushSubscription } = await import('$lib/push');
+        await syncExistingPushSubscription(token);
+    } catch (error) {
+        console.warn('Push subscription sync failed:', error);
+    }
+}
+
+async function unsubscribePushForToken(token: string | null): Promise<void> {
+    if (!browser || !token) {
+        return;
+    }
+
+    try {
+        const { unsubscribeFromPush } = await import('$lib/push');
+        await unsubscribeFromPush(token);
+    } catch (error) {
+        console.warn('Push unsubscribe failed:', error);
+    }
+}
+
 /**
  * Make authenticated API request
  */
@@ -310,6 +336,7 @@ export async function login(
         });
         
         persistAuth(authData.user, authData.token);
+        void syncPushSubscriptionForToken(authData.token);
         
         return true;
         
@@ -388,6 +415,13 @@ export async function register(
  * Invalidates token on backend and clears all auth state and persisted data
  */
 export async function logout(): Promise<void> {
+    let currentToken: string | null = null;
+    authStore.subscribe((state) => {
+        currentToken = state.token;
+    })();
+
+    await unsubscribePushForToken(currentToken);
+
     try {
         // Call backend to invalidate the token
         await authFetch('/auth/logout', {
@@ -520,6 +554,8 @@ export async function verifyToken(): Promise<boolean> {
                 localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(data.user));
             }
         }
+
+        void syncPushSubscriptionForToken(currentState.token);
         
         authReady.set(true);
         return true;

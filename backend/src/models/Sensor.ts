@@ -36,6 +36,15 @@ const sensorSchema = new mongoose.Schema(
         isActive: {
             type: Boolean,
             default: true
+        },
+        lastThresholdNotificationLevel: {
+            type: String,
+            enum: ['none', 'warning', 'almost_full', 'critical'],
+            default: 'none'
+        },
+        lastDailyNotificationDate: {
+            type: String,
+            default: ''
         }
     },
     { timestamps: true, collection: 'sensors' }

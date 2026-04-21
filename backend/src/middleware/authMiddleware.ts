@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { isTokenBlacklisted } from '../utils/tokenBlacklist.js';
 
-interface AuthRequest extends Request {
+export interface AuthRequest extends Request {
     user?: { username: string; role: string };
 }
 

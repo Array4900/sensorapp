@@ -12,6 +12,7 @@
         deleteUser, 
         adminDeleteSensor,
         transferSensorOwnership,
+        sendPushNotification,
         type User, 
         type Sensor 
     } from '$lib/api';
@@ -35,6 +36,13 @@
     
     // Transfer state
     let transferringId: string | null = null;
+    let pushTitle = '';
+    let pushBody = '';
+    let pushUrl = '/';
+    let pushUsername = '';
+    let sendingPush = false;
+    let pushStatus = '';
+    let pushError = '';
     
     // ============================================
     // LIFECYCLE
@@ -173,6 +181,33 @@
     
     function getSensorCountForUser(username: string): number {
         return allSensors.filter(s => s.owner === username).length;
+    }
+
+    async function handleSendPushNotification() {
+        pushStatus = '';
+        pushError = '';
+
+        if (!pushTitle.trim() || !pushBody.trim()) {
+            pushError = 'Nadpis a text notifikácie sú povinné.';
+            return;
+        }
+
+        sendingPush = true;
+
+        try {
+            const result = await sendPushNotification({
+                title: pushTitle.trim(),
+                body: pushBody.trim(),
+                url: pushUrl.trim() || '/',
+                username: pushUsername.trim() || undefined
+            });
+
+            pushStatus = `Odoslané: ${result.delivered}, odstránené neplatné odbery: ${result.removed}.`;
+        } catch (e) {
+            pushError = (e as Error).message || 'Nepodarilo sa odoslať notifikáciu.';
+        } finally {
+            sendingPush = false;
+        }
     }
     
 
@@ -364,12 +399,6 @@
         background: #c82333;
     }
     
-    .btn-secondary {
-        background: var(--color-bg-secondary);
-        color: var(--color-text-primary);
-        border: 1px solid var(--color-border);
-    }
-    
     .btn-primary {
         background: var(--color-primary);
         color: white;
@@ -439,6 +468,41 @@
         border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
         overflow: hidden;
+    }
+
+    .notification-panel {
+        background: var(--color-bg-primary);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        padding: var(--space-4);
+        margin-bottom: var(--space-6);
+    }
+
+    .notification-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: var(--space-3);
+        margin-bottom: var(--space-3);
+    }
+
+    .notification-field {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+
+    .notification-field input,
+    .notification-field textarea {
+        padding: var(--space-2) var(--space-3);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        font-size: var(--font-size-base);
+    }
+
+    .notification-field textarea {
+        min-height: 110px;
+        resize: vertical;
+        grid-column: 1 / -1;
     }
     
     .section-header {
@@ -580,6 +644,48 @@
                 <div class="stat-value">{allSensors.filter(s => s.isActive).length}</div>
                 <div class="stat-label">Aktívne senzory</div>
             </div>
+        </div>
+
+        <div class="notification-panel">
+            <div class="section-header" style="padding: 0 0 var(--space-4) 0; border-bottom: none;">
+                <h2 class="section-title">🔔 Odoslať push notifikáciu</h2>
+            </div>
+
+            <div class="notification-grid">
+                <div class="notification-field">
+                    <label for="push-title">Nadpis</label>
+                    <input id="push-title" bind:value={pushTitle} placeholder="Napr. Nové upozornenie" />
+                </div>
+                <div class="notification-field">
+                    <label for="push-user">Používateľ</label>
+                    <input id="push-user" bind:value={pushUsername} placeholder="Nechať prázdne pre všetkých" list="push-users" />
+                    <datalist id="push-users">
+                        {#each users as user (user._id)}
+                            <option value={user.username}></option>
+                        {/each}
+                    </datalist>
+                </div>
+                <div class="notification-field">
+                    <label for="push-url">URL po kliknutí</label>
+                    <input id="push-url" bind:value={pushUrl} placeholder="/dashboard" />
+                </div>
+                <div class="notification-field">
+                    <label for="push-body">Text správy</label>
+                    <textarea id="push-body" bind:value={pushBody} placeholder="Sem zadajte obsah notifikácie"></textarea>
+                </div>
+            </div>
+
+            {#if pushError}
+                <p style="color: var(--color-danger); margin-bottom: var(--space-3);">{pushError}</p>
+            {/if}
+
+            {#if pushStatus}
+                <p style="color: #155724; margin-bottom: var(--space-3);">{pushStatus}</p>
+            {/if}
+
+            <button class="btn btn-primary" on:click={handleSendPushNotification} disabled={sendingPush}>
+                {sendingPush ? 'Odosielam...' : 'Odoslať notifikáciu'}
+            </button>
         </div>
         
         <!-- Tabs -->

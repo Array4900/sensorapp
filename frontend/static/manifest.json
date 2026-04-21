@@ -1,6 +1,6 @@
 {
-  "name": "Sensor App",
-  "short_name": "Sensors",
+  "name": "SensorApp",
+  "short_name": "SensorApp",
   "description": "Progresívna webová aplikácia pre monitorovanie žumpy pomocou senzora v reálnom čase.",
   "start_url": "/",
   "scope": "/",

@@ -12,9 +12,11 @@
 
 <script lang="ts">
     import type { Snippet } from 'svelte';
+    import { onMount } from 'svelte';
     import { page } from '$app/stores';
     import { goto } from '$app/navigation';
     import { user, isAuthenticated, isAdmin, logout, authReady } from '$lib/stores/auth';
+    import { registerServiceWorker } from '$lib/push';
     import '../static/layout.css';
     
     // ============================================
@@ -107,6 +109,10 @@
             userMenuOpen = false;
         }
     }
+
+    onMount(() => {
+        void registerServiceWorker();
+    });
 </script>
 
 <!-- Click outside handler -->

@@ -73,6 +73,27 @@ export interface UpdateSensorData {
     isActive?: boolean;
 }
 
+export interface SendPushNotificationData {
+    title: string;
+    body: string;
+    url?: string;
+    username?: string;
+}
+
+export interface SentNotification {
+    _id: string;
+    title: string;
+    body: string;
+    url: string;
+    category: 'threshold' | 'daily' | 'manual';
+    sensorName: string;
+    deliveredCount: number;
+    removedCount: number;
+    targetedSubscriptions: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
 // ============================================
 // SENSOR API
 // ============================================
@@ -199,4 +220,28 @@ export async function transferSensorOwnership(sensorId: string, newOwner: string
     }
     const data = await response.json();
     return data.sensor;
+}
+
+export async function sendPushNotification(payload: SendPushNotificationData): Promise<{ delivered: number; removed: number; targetedSubscriptions: number }> {
+    const response = await authFetch('/push/send', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Nepodarilo sa odoslať notifikáciu'));
+    }
+
+    return response.json();
+}
+
+export async function getSentNotifications(): Promise<SentNotification[]> {
+    const response = await authFetch('/push/history');
+
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Nepodarilo sa načítať históriu notifikácií'));
+    }
+
+    const data = await response.json();
+    return data.notifications;
 }

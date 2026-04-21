@@ -1,8 +1,15 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
-    import { user, isAuthenticated, logout, isAdmin } from '$lib/stores/auth';
+    import { authToken, user, isAuthenticated, logout, isAdmin } from '$lib/stores/auth';
     import { changePassword } from '$lib/stores/auth';
     import { onMount } from 'svelte';
+    import {
+        getNotificationPermission,
+        hasPushSubscription,
+        isPushSupported,
+        subscribeToPush,
+        unsubscribeFromPush
+    } from '$lib/push';
 
     let showPasswordDialog = false;
     let oldPassword = '';
@@ -11,11 +18,32 @@
     let passwordError = '';
     let passwordSuccess = '';
     let isChanging = false;
+    let notificationsSupported = false;
+    let notificationsEnabled = false;
+    let notificationsBusy = false;
+    let notificationMessage = '';
+    let notificationError = '';
+    let notificationPermission: NotificationPermission | 'unsupported' = 'unsupported';
 
-    onMount(() => {
+    async function refreshPushState() {
+        notificationsSupported = isPushSupported();
+        notificationPermission = getNotificationPermission();
+
+        if (!notificationsSupported) {
+            notificationsEnabled = false;
+            return;
+        }
+
+        notificationsEnabled = await hasPushSubscription();
+    }
+
+    onMount(async () => {
         if (!$isAuthenticated) {
             goto('/login');
+            return;
         }
+
+        await refreshPushState();
     });
 
     function handleLogout() {
@@ -87,6 +115,46 @@
         confirmPassword = '';
         passwordError = '';
         passwordSuccess = '';
+    }
+
+    async function handleEnableNotifications() {
+        notificationMessage = '';
+        notificationError = '';
+        notificationsBusy = true;
+
+        try {
+            if (!$authToken) {
+                throw new Error('Musíte byť prihlásený.');
+            }
+
+            await subscribeToPush($authToken);
+            notificationMessage = 'Push notifikácie boli zapnuté.';
+            await refreshPushState();
+        } catch (error) {
+            notificationError = (error as Error).message || 'Nepodarilo sa zapnúť push notifikácie.';
+        } finally {
+            notificationsBusy = false;
+        }
+    }
+
+    async function handleDisableNotifications() {
+        notificationMessage = '';
+        notificationError = '';
+        notificationsBusy = true;
+
+        try {
+            if (!$authToken) {
+                throw new Error('Musíte byť prihlásený.');
+            }
+
+            await unsubscribeFromPush($authToken);
+            notificationMessage = 'Push notifikácie boli vypnuté.';
+            await refreshPushState();
+        } catch (error) {
+            notificationError = (error as Error).message || 'Nepodarilo sa vypnúť push notifikácie.';
+        } finally {
+            notificationsBusy = false;
+        }
     }
 </script>
 
@@ -184,6 +252,27 @@
         flex-wrap: wrap;
     }
 
+    .notification-status {
+        display: grid;
+        gap: var(--space-3);
+    }
+
+    .notification-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--space-4);
+        padding: var(--space-3);
+        background: var(--color-bg-secondary);
+        border-radius: var(--radius-md);
+    }
+
+    .notification-actions {
+        display: flex;
+        gap: var(--space-2);
+        flex-wrap: wrap;
+    }
+
     .btn {
         padding: var(--space-3) var(--space-6);
         border-radius: var(--radius-md);
@@ -227,14 +316,24 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
         display: flex;
         align-items: center;
         justify-content: center;
         z-index: 1000;
     }
 
+    .modal-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        border: none;
+        padding: 0;
+        cursor: pointer;
+    }
+
     .modal-dialog {
+        position: relative;
+        z-index: 1;
         background: var(--color-bg-primary);
         border-radius: var(--radius-lg);
         padding: var(--space-6);
@@ -358,6 +457,42 @@
             </div>
         </div>
 
+        <div class="profile-card">
+            <h2 class="page-title">🔔 Notifikácie</h2>
+
+            <div class="notification-status">
+                <div class="notification-row">
+                    <span class="info-label">Podpora prehliadača</span>
+                    <span class="info-value">{notificationsSupported ? 'Áno' : 'Nie'}</span>
+                </div>
+                <div class="notification-row">
+                    <span class="info-label">Povolenie</span>
+                    <span class="info-value">{notificationPermission}</span>
+                </div>
+                <div class="notification-row">
+                    <span class="info-label">Aktívne odberné zariadenie</span>
+                    <span class="info-value">{notificationsEnabled ? 'Áno' : 'Nie'}</span>
+                </div>
+            </div>
+
+            {#if notificationError}
+                <div class="error-message">{notificationError}</div>
+            {/if}
+
+            {#if notificationMessage}
+                <div class="success-message">{notificationMessage}</div>
+            {/if}
+
+            <div class="notification-actions">
+                <button class="btn btn-primary" on:click={handleEnableNotifications} disabled={!notificationsSupported || notificationsBusy}>
+                    {notificationsBusy ? 'Spracovávam...' : 'Zapnúť push notifikácie'}
+                </button>
+                <button class="btn btn-secondary" on:click={handleDisableNotifications} disabled={!notificationsSupported || notificationsBusy || !notificationsEnabled}>
+                    Vypnúť push notifikácie
+                </button>
+            </div>
+        </div>
+
         <div class="actions-section">
             <button class="btn btn-primary" on:click={() => goto('/sensors')}>
                 📡 Moje senzory
@@ -390,10 +525,11 @@
 
 <!-- Change Password Dialog-->
 {#if showPasswordDialog}
-    <div class="modal-overlay" on:click={closePasswordDialog}>
-        <div class="modal-dialog" on:click|stopPropagation>
+    <div class="modal-overlay">
+        <button type="button" class="modal-backdrop" on:click={closePasswordDialog} aria-label="Zavrieť dialóg"></button>
+        <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="change-password-title">
             <div class="modal-header">
-                <h2 class="modal-title">🔐 Zmeniť heslo</h2>
+                <h2 class="modal-title" id="change-password-title">🔐 Zmeniť heslo</h2>
                 <button class="modal-close" on:click={closePasswordDialog}>✕</button>
             </div>
 
