@@ -3,16 +3,17 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
-	// Consult https://svelte.dev/docs/kit/integrations
-	// for more information about preprocessors
-	preprocess: vitePreprocess(),
+    preprocess: vitePreprocess(),
 
-	kit: {
-		// adapter-node only supports Node.js environments, see https://svelte.dev/docs/kit/adapter-node for more information.
-		// If your environment is not supported, or you settled on a specific environment, switch out the adapter.
-		// See https://svelte.dev/docs/kit/adapters for more information about adapters.
-		adapter: adapter()
-	}
+    kit: {
+        // adapter-node je správna voľba pre Docker
+        adapter: adapter(),
+        
+        // NASTAVENIE PRE CLOUDFLARE TUNNEL
+        csrf: {
+            checkOrigin: false,
+        }
+    }
 };
 
 export default config;

@@ -13,6 +13,7 @@
 import { writable, derived, type Writable, type Readable } from 'svelte/store';
 import { browser } from '$app/environment';
 import { env } from '$env/dynamic/public';
+import { markOffline, markOnline } from './offline';
 
 // ============================================
 // TYPE DEFINITIONS
@@ -232,10 +233,27 @@ async function authFetch(
         (headers as Record<string, string>)['Authorization'] = `Bearer ${currentToken}`;
     }
     
-    return fetch(`${API_BASE}${endpoint}`, {
-        ...options,
-        headers
-    });
+    try {
+        const response = await fetch(`${API_BASE}${endpoint}`, {
+            ...options,
+            headers
+        });
+
+        if (browser) {
+            if (response.headers.get('X-SW-Cache') === 'true' || response.headers.get('X-SW-Offline') === 'true') {
+                markOffline();
+            } else {
+                markOnline();
+            }
+        }
+
+        return response;
+    } catch (error) {
+        if (browser) {
+            markOffline();
+        }
+        throw error;
+    }
 }
 
 // ============================================

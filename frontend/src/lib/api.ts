@@ -5,6 +5,28 @@
 
 import { authFetch } from './stores/auth';
 
+async function readErrorMessage(response: Response, fallback: string): Promise<string> {
+    const contentType = response.headers.get('content-type') || '';
+
+    try {
+        if (contentType.includes('application/json')) {
+            const data = await response.json();
+            if (typeof data?.message === 'string' && data.message.trim().length > 0) {
+                return data.message;
+            }
+        } else {
+            const text = await response.text();
+            if (text.trim().length > 0) {
+                return text;
+            }
+        }
+    } catch {
+        return fallback;
+    }
+
+    return fallback;
+}
+
 // ============================================
 // TYPES
 // ============================================
@@ -58,7 +80,7 @@ export interface UpdateSensorData {
 export async function getSensors(): Promise<Sensor[]> {
     const response = await authFetch('/sensors');
     if (!response.ok) {
-        throw new Error('Failed to fetch sensors');
+        throw new Error(await readErrorMessage(response, 'Nepodarilo sa načítať senzory'));
     }
     const data = await response.json();
     return data.sensors;
@@ -67,7 +89,7 @@ export async function getSensors(): Promise<Sensor[]> {
 export async function getSensorById(id: string): Promise<Sensor> {
     const response = await authFetch(`/sensors/${id}`);
     if (!response.ok) {
-        throw new Error('Failed to fetch sensor');
+        throw new Error(await readErrorMessage(response, 'Nepodarilo sa načítať senzor'));
     }
     const data = await response.json();
     return data.sensor;
@@ -92,7 +114,7 @@ export async function updateSensor(id: string, sensorData: UpdateSensorData): Pr
         body: JSON.stringify(sensorData)
     });
     if (!response.ok) {
-        throw new Error('Failed to update sensor');
+        throw new Error(await readErrorMessage(response, 'Nepodarilo sa upraviť senzor'));
     }
     const data = await response.json();
     return data.sensor;
@@ -103,14 +125,14 @@ export async function deleteSensor(id: string): Promise<void> {
         method: 'DELETE'
     });
     if (!response.ok) {
-        throw new Error('Failed to delete sensor');
+        throw new Error(await readErrorMessage(response, 'Nepodarilo sa vymazať senzor'));
     }
 }
 
 export async function getSensorMeasurements(sensorId: string): Promise<Measurement[]> {
     const response = await authFetch(`/sensors/${sensorId}/measurements`);
     if (!response.ok) {
-        throw new Error('Failed to fetch measurements');
+        throw new Error(await readErrorMessage(response, 'Nepodarilo sa načítať merania'));
     }
     const data = await response.json();
     return data.measurements;
@@ -123,7 +145,7 @@ export async function getSensorMeasurements(sensorId: string): Promise<Measureme
 export async function getAllUsers(): Promise<User[]> {
     const response = await authFetch('/admin/users');
     if (!response.ok) {
-        throw new Error('Failed to fetch users');
+        throw new Error(await readErrorMessage(response, 'Nepodarilo sa načítať používateľov'));
     }
     const data = await response.json();
     return data.users;
@@ -132,7 +154,7 @@ export async function getAllUsers(): Promise<User[]> {
 export async function getAllSensors(): Promise<Sensor[]> {
     const response = await authFetch('/admin/sensors');
     if (!response.ok) {
-        throw new Error('Failed to fetch sensors');
+        throw new Error(await readErrorMessage(response, 'Nepodarilo sa načítať senzory'));
     }
     const data = await response.json();
     return data.sensors;
@@ -141,7 +163,7 @@ export async function getAllSensors(): Promise<Sensor[]> {
 export async function getUserSensors(username: string): Promise<Sensor[]> {
     const response = await authFetch(`/admin/users/${username}/sensors`);
     if (!response.ok) {
-        throw new Error('Failed to fetch user sensors');
+        throw new Error(await readErrorMessage(response, 'Nepodarilo sa načítať senzory používateľa'));
     }
     const data = await response.json();
     return data.sensors;
@@ -162,7 +184,7 @@ export async function adminDeleteSensor(id: string): Promise<void> {
         method: 'DELETE'
     });
     if (!response.ok) {
-        throw new Error('Failed to delete sensor');
+        throw new Error(await readErrorMessage(response, 'Nepodarilo sa vymazať senzor'));
     }
 }
 

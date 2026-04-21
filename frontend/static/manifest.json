@@ -1,11 +1,11 @@
 {
   "name": "Sensor App",
   "short_name": "Sensors",
-  "description": "A progressive web app for managing sensors and measurements",
+  "description": "Progresívna webová aplikácia pre monitorovanie žumpy pomocou senzora v reálnom čase.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait-or-landscape",
+  "orientation": "portrait",
   "theme_color": "#2d3748",
   "background_color": "#ffffff",
   "icons": [

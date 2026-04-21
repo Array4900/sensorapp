@@ -5,16 +5,16 @@ RUN npm install
 COPY . .
 RUN npm run build
 
-# Druhá fáza (Production stage) - zmenší výsledný obraz
 FROM node:20-alpine
 WORKDIR /app
-# Skopírujeme len to, čo potrebujeme na beh
 COPY --from=builder /app/build ./build
 COPY --from=builder /app/package*.json ./
-# Nainštalujeme len produkčné závislosti
 RUN npm install --omit=dev
 
-EXPOSE 5173
-# Nastaví port, na ktorom bude node aplikácia počúvať
-ENV PORT=5173
+# Zmena na 3000
+EXPOSE 3000
+ENV PORT=3000
+# SvelteKit vyžaduje 0.0.0.0, aby prijímal spojenia z tunela
+ENV HOST=0.0.0.0 
+
 CMD ["node", "build"]

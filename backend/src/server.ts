@@ -14,7 +14,14 @@ import Measurement from './models/Measurement.js';
 
 const app = express();
 app.use(cors( {
-    origin: '*'
+    origin: [
+        'https://sahur.sk',
+        'https://www.sahur.sk',
+        'https://api.sahur.sk',
+        'http://localhost:3000'
+
+    ],
+    credentials: true
 }));
 
 dotenv.config();

@@ -5,15 +5,19 @@ services:
   db:
     image: mongo:latest
     container_name: sensor_db
+    restart: always
     ports:
       - "27018:27017" # Prístup z Windowsu (Compass) cez 27018
     volumes:
       - ./mongodb_data:/data/db
+    networks:
+      - sensor-network
 
   # 2. Backend (Express)
   api:
     build: ./backend
     container_name: sensor_api
+    restart: always
     ports:
       - "5000:5000"
     environment:
@@ -28,20 +32,27 @@ services:
     depends_on:
       - db
       - mosquitto
+    networks:
+      - sensor-network
 
   # 3. Frontend (SvelteKit)
   web:
     build: ./frontend
     container_name: sensor_web
+    restart: always
     ports:
-      - "5173:5173"
+      - "3000:3000"
     environment:
-      # Pre prehliadač (klient): Volá Windows port
-      - PUBLIC_API_URL=http://192.168.1.175:5000/api
-      # Pre SvelteKit server (SSR): Volá vnútorný Docker názov "api"
-      - INTERNAL_API_URL=http://api:5000/api
+      # Prehliadač teraz volá verejnú Cloudflare adresu - produkcia
+      #- PUBLIC_API_URL=https://api.sahur.sk/api
+      # Pre testovanie a vývoj, keď beží všetko lokálne, môžeme použiť internú Docker sieť
+      - PUBLIC_API_URL=http://localhost:5000/api
+      # SvelteKit server (SSR) stále volá backend interne cez Docker sieť
+      - INTERNAL_API_URL=http://sensor_api:5000/api
     depends_on:
       - api
+    networks:
+      - sensor-network
 
   # 4. MQTT Broker (Mosquitto)
   mosquitto:
@@ -56,4 +67,20 @@ services:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
-      
+    networks:
+      - sensor-network
+  # tunnel:
+  #   container_name: cloudflared-tunnel
+  #   image: cloudflare/cloudflared:latest
+  #   restart: always
+  #   environment:
+  #     - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+  #   command: tunnel run
+  #   depends_on:
+  #     - api  # Tunel sa spustí až keď beží backend
+  #   networks:
+  #     - sensor-network
+
+networks:
+  sensor-network:
+    driver: bridge

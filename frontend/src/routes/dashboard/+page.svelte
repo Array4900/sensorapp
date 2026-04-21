@@ -5,7 +5,14 @@
     import { onMount } from 'svelte';
     import { goto } from '$app/navigation';
     import { isAuthenticated, isAdmin, user } from '$lib/stores/auth';
+    import { isOnline } from '$lib/stores/offline';
     import { getSensors, getSensorMeasurements, type Sensor, type Measurement } from '$lib/api';
+
+    interface LegendItem {
+        label: string;
+        value: string;
+        accent: string;
+    }
 
     // ============================================
     // STATE
@@ -17,9 +24,7 @@
     let loading = true;
     let loadingMeasurements = false;
     let error = '';
-
-    // Command editor state
-    let showCommandEditor = false;
+    let offline = false;
 
     // Canvas references
     let distanceCanvas: HTMLCanvasElement;
@@ -27,18 +32,38 @@
 
     // Sensor config (pre výpočet % naplnenia)
     const TANK_HEIGHT_CM = 200; // celková výška nádrže v cm
+
+    $: offline = !$isOnline;
+    $: selectedSensor = sensors.find((sensor) => sensor._id === selectedSensorId) ?? null;
+    $: distanceLegend = createDistanceLegend(measurements);
+    $: percentLegend = createPercentLegend(measurements);
     
     // ============================================
     // LIFECYCLE
     // ============================================
     
-    onMount(async () => {
+    onMount(() => {
         if (!$isAuthenticated) {
             goto('/login');
             return;
         }
-        
-        await loadSensors();
+
+        const handleResize = () => {
+            if (measurements.length > 0) {
+                requestAnimationFrame(() => {
+                    drawDistanceGraph();
+                    drawPercentGraph();
+                });
+            }
+        };
+
+        window.addEventListener('resize', handleResize);
+
+        void loadSensors();
+
+        return () => {
+            window.removeEventListener('resize', handleResize);
+        };
     });
     
     // ============================================
@@ -70,7 +95,7 @@
             measurements = measurements.sort((a, b) => 
                 new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
             );
-            // Draw graphs after data loads
+
             requestAnimationFrame(() => {
                 drawDistanceGraph();
                 drawPercentGraph();
@@ -102,183 +127,268 @@
         return Math.max(0, Math.min(100, parseFloat(percent.toFixed(1))));
     }
 
+    function createDistanceLegend(data: Measurement[]): LegendItem[] {
+        if (data.length === 0) {
+            return [];
+        }
+
+        const values = data.map((measurement) => measurement.value);
+        const latest = values[values.length - 1];
+
+        return [
+            { label: 'Posledné meranie', value: `${latest.toFixed(1)} cm`, accent: '#2563eb' },
+            { label: 'Minimum', value: `${Math.min(...values).toFixed(1)} cm`, accent: '#0f766e' },
+            { label: 'Maximum', value: `${Math.max(...values).toFixed(1)} cm`, accent: '#b45309' },
+            { label: 'Vzorky', value: `${data.length}`, accent: '#475569' }
+        ];
+    }
+
+    function createPercentLegend(data: Measurement[]): LegendItem[] {
+        if (data.length === 0) {
+            return [];
+        }
+
+        const values = data.map((measurement) => calculatePercent(measurement.value));
+        const latest = values[values.length - 1];
+
+        return [
+            { label: 'Aktuálne naplnenie', value: `${latest.toFixed(1)}%`, accent: '#059669' },
+            { label: 'Minimum', value: `${Math.min(...values).toFixed(1)}%`, accent: '#0f766e' },
+            { label: 'Maximum', value: `${Math.max(...values).toFixed(1)}%`, accent: '#ca8a04' },
+            { label: 'Kapacita nádrže', value: `${TANK_HEIGHT_CM} cm`, accent: '#475569' }
+        ];
+    }
+
+    function setupCanvas(canvas: HTMLCanvasElement) {
+        const context = canvas.getContext('2d');
+        if (!context) {
+            return null;
+        }
+
+        const width = Math.max(320, Math.floor(canvas.getBoundingClientRect().width));
+        const height = width < 640 ? 280 : 340;
+        const ratio = window.devicePixelRatio || 1;
+
+        canvas.width = Math.floor(width * ratio);
+        canvas.height = Math.floor(height * ratio);
+        context.setTransform(ratio, 0, 0, ratio, 0, 0);
+        context.clearRect(0, 0, width, height);
+
+        return {
+            context,
+            width,
+            height,
+            padding: {
+                top: 20,
+                right: width < 640 ? 16 : 24,
+                bottom: width < 640 ? 72 : 60,
+                left: width < 640 ? 54 : 64
+            }
+        };
+    }
+
+    function drawGraphSurface(
+        ctx: CanvasRenderingContext2D,
+        width: number,
+        height: number,
+        accent: string
+    ): void {
+        const background = ctx.createLinearGradient(0, 0, 0, height);
+        background.addColorStop(0, 'rgba(248, 250, 252, 0.98)');
+        background.addColorStop(1, 'rgba(241, 245, 249, 0.9)');
+        ctx.fillStyle = background;
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.18)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+
+        ctx.fillStyle = accent;
+        ctx.fillRect(0, 0, 8, height);
+    }
+
+    function drawLegendBubble(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        label: string,
+        color: string
+    ): void {
+        ctx.save();
+        ctx.font = '600 11px system-ui, sans-serif';
+        const textWidth = ctx.measureText(label).width;
+        const pillWidth = textWidth + 20;
+        const pillHeight = 28;
+        const left = Math.max(12, Math.min(x - pillWidth / 2, ctx.canvas.width / (window.devicePixelRatio || 1) - pillWidth - 12));
+        const top = Math.max(12, y - 42);
+
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.roundRect(left, top, pillWidth, pillHeight, 14);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, left + pillWidth / 2, top + pillHeight / 2 + 0.5);
+        ctx.restore();
+    }
+
+    function drawLineChart(options: {
+        canvas: HTMLCanvasElement;
+        values: number[];
+        lineColor: string;
+        fillColorTop: string;
+        fillColorBottom: string;
+        yFormatter: (value: number) => string;
+        bubbleLabel: (value: number) => string;
+        minValue?: number;
+        maxValue?: number;
+    }): void {
+        if (options.values.length === 0) {
+            return;
+        }
+
+        const result = setupCanvas(options.canvas);
+        if (!result) {
+            return;
+        }
+
+        const { context: ctx, width, height, padding } = result;
+        const graphWidth = width - padding.left - padding.right;
+        const graphHeight = height - padding.top - padding.bottom;
+        const minimum = options.minValue ?? Math.max(0, Math.min(...options.values) - 10);
+        const maximum = options.maxValue ?? Math.max(...options.values) + 10;
+        const safeRange = maximum - minimum || 1;
+        const step = Math.max(1, Math.ceil(measurements.length / (width < 640 ? 4 : 6)));
+
+        drawGraphSurface(ctx, width, height, options.lineColor);
+
+        ctx.save();
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.32)';
+        ctx.setLineDash([4, 6]);
+        for (let index = 0; index <= 5; index += 1) {
+            const y = padding.top + (index / 5) * graphHeight;
+            ctx.beginPath();
+            ctx.moveTo(padding.left, y);
+            ctx.lineTo(padding.left + graphWidth, y);
+            ctx.stroke();
+
+            const labelValue = maximum - (index / 5) * safeRange;
+            ctx.fillStyle = '#64748b';
+            ctx.font = '500 11px system-ui, sans-serif';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(options.yFormatter(labelValue), padding.left - 10, y);
+        }
+        ctx.restore();
+
+        ctx.strokeStyle = 'rgba(71, 85, 105, 0.25)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, padding.top + graphHeight);
+        ctx.lineTo(padding.left + graphWidth, padding.top + graphHeight);
+        ctx.stroke();
+
+        const points = options.values.map((value, index) => {
+            const x = padding.left + (index / Math.max(options.values.length - 1, 1)) * graphWidth;
+            const y = padding.top + ((maximum - value) / safeRange) * graphHeight;
+            return { x, y, value };
+        });
+
+        const areaGradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + graphHeight);
+        areaGradient.addColorStop(0, options.fillColorTop);
+        areaGradient.addColorStop(1, options.fillColorBottom);
+
+        ctx.beginPath();
+        points.forEach((point, index) => {
+            if (index === 0) {
+                ctx.moveTo(point.x, point.y);
+            } else {
+                ctx.lineTo(point.x, point.y);
+            }
+        });
+        ctx.lineTo(points[points.length - 1].x, padding.top + graphHeight);
+        ctx.lineTo(points[0].x, padding.top + graphHeight);
+        ctx.closePath();
+        ctx.fillStyle = areaGradient;
+        ctx.fill();
+
+        ctx.beginPath();
+        points.forEach((point, index) => {
+            if (index === 0) {
+                ctx.moveTo(point.x, point.y);
+            } else {
+                ctx.lineTo(point.x, point.y);
+            }
+        });
+        ctx.strokeStyle = options.lineColor;
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.stroke();
+
+        points.forEach((point, index) => {
+            ctx.beginPath();
+            ctx.fillStyle = '#ffffff';
+            ctx.arc(point.x, point.y, index === points.length - 1 ? 5 : 3.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.fillStyle = options.lineColor;
+            ctx.arc(point.x, point.y, index === points.length - 1 ? 3.5 : 2.5, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        ctx.fillStyle = '#64748b';
+        ctx.font = '500 11px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        for (let index = 0; index < measurements.length; index += step) {
+            const point = points[index];
+            ctx.save();
+            ctx.translate(point.x, height - padding.bottom + 18);
+            ctx.rotate(width < 640 ? -0.65 : -0.45);
+            ctx.fillText(formatShortDate(measurements[index].timestamp), 0, 0);
+            ctx.restore();
+        }
+
+        const lastPoint = points[points.length - 1];
+        drawLegendBubble(ctx, lastPoint.x, lastPoint.y, options.bubbleLabel(lastPoint.value), options.lineColor);
+    }
+
     // ============================================
     // GRAPH DRAWING
     // ============================================
 
     function drawDistanceGraph() {
         if (!distanceCanvas || measurements.length === 0) return;
-        const ctx = distanceCanvas.getContext('2d');
-        if (!ctx) return;
 
-        const w = distanceCanvas.width = distanceCanvas.offsetWidth * 2;
-        const h = distanceCanvas.height = 400;
-        const padding = { top: 30, right: 30, bottom: 60, left: 60 };
-        const graphW = w - padding.left - padding.right;
-        const graphH = h - padding.top - padding.bottom;
-
-        ctx.clearRect(0, 0, w, h);
-        ctx.scale(1, 1);
-
-        const values = measurements.map(m => m.value);
-        const minVal = Math.max(0, Math.min(...values) - 10);
-        const maxVal = Math.max(...values) + 10;
-
-        // Grid lines
-        ctx.strokeStyle = '#e5e7eb';
-        ctx.lineWidth = 1;
-        for (let i = 0; i <= 5; i++) {
-            const y = padding.top + (i / 5) * graphH;
-            ctx.beginPath();
-            ctx.moveTo(padding.left, y);
-            ctx.lineTo(padding.left + graphW, y);
-            ctx.stroke();
-
-            // Y axis labels
-            const val = maxVal - (i / 5) * (maxVal - minVal);
-            ctx.fillStyle = '#6b7280';
-            ctx.font = '22px sans-serif';
-            ctx.textAlign = 'right';
-            ctx.fillText(`${val.toFixed(0)} cm`, padding.left - 8, y + 5);
-        }
-
-        // Data line
-        ctx.strokeStyle = '#4361ee';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        measurements.forEach((m, i) => {
-            const x = padding.left + (i / (measurements.length - 1 || 1)) * graphW;
-            const y = padding.top + ((maxVal - m.value) / (maxVal - minVal || 1)) * graphH;
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
+        drawLineChart({
+            canvas: distanceCanvas,
+            values: measurements.map((measurement) => measurement.value),
+            lineColor: '#2563eb',
+            fillColorTop: 'rgba(37, 99, 235, 0.28)',
+            fillColorBottom: 'rgba(37, 99, 235, 0.03)',
+            yFormatter: (value) => `${value.toFixed(0)} cm`,
+            bubbleLabel: (value) => `${value.toFixed(1)} cm`
         });
-        ctx.stroke();
-
-        // Data points
-        ctx.fillStyle = '#4361ee';
-        measurements.forEach((m, i) => {
-            const x = padding.left + (i / (measurements.length - 1 || 1)) * graphW;
-            const y = padding.top + ((maxVal - m.value) / (maxVal - minVal || 1)) * graphH;
-            ctx.beginPath();
-            ctx.arc(x, y, 4, 0, Math.PI * 2);
-            ctx.fill();
-        });
-
-        // X axis labels (show a few)
-        ctx.fillStyle = '#6b7280';
-        ctx.font = '20px sans-serif';
-        ctx.textAlign = 'center';
-        const step = Math.max(1, Math.floor(measurements.length / 6));
-        for (let i = 0; i < measurements.length; i += step) {
-            const x = padding.left + (i / (measurements.length - 1 || 1)) * graphW;
-            ctx.save();
-            ctx.translate(x, h - padding.bottom + 15);
-            ctx.rotate(-0.5);
-            ctx.fillText(formatShortDate(measurements[i].timestamp), 0, 0);
-            ctx.restore();
-        }
-
-        // Title
-        ctx.fillStyle = '#1f2937';
-        ctx.font = 'bold 26px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('Vzdialenosť (cm) v čase', w / 2, 22);
     }
 
     function drawPercentGraph() {
         if (!percentCanvas || measurements.length === 0) return;
-        const ctx = percentCanvas.getContext('2d');
-        if (!ctx) return;
 
-        const w = percentCanvas.width = percentCanvas.offsetWidth * 2;
-        const h = percentCanvas.height = 400;
-        const padding = { top: 30, right: 30, bottom: 60, left: 60 };
-        const graphW = w - padding.left - padding.right;
-        const graphH = h - padding.top - padding.bottom;
-
-        ctx.clearRect(0, 0, w, h);
-
-        // Grid lines
-        ctx.strokeStyle = '#e5e7eb';
-        ctx.lineWidth = 1;
-        for (let i = 0; i <= 5; i++) {
-            const y = padding.top + (i / 5) * graphH;
-            ctx.beginPath();
-            ctx.moveTo(padding.left, y);
-            ctx.lineTo(padding.left + graphW, y);
-            ctx.stroke();
-
-            const val = 100 - (i / 5) * 100;
-            ctx.fillStyle = '#6b7280';
-            ctx.font = '22px sans-serif';
-            ctx.textAlign = 'right';
-            ctx.fillText(`${val.toFixed(0)}%`, padding.left - 8, y + 5);
-        }
-
-        // Data line - fill gradient below
-        const percentValues = measurements.map(m => calculatePercent(m.value));
-
-        // Fill area
-        ctx.beginPath();
-        measurements.forEach((m, i) => {
-            const x = padding.left + (i / (measurements.length - 1 || 1)) * graphW;
-            const pct = percentValues[i];
-            const y = padding.top + ((100 - pct) / 100) * graphH;
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
+        drawLineChart({
+            canvas: percentCanvas,
+            values: measurements.map((measurement) => calculatePercent(measurement.value)),
+            lineColor: '#059669',
+            fillColorTop: 'rgba(5, 150, 105, 0.25)',
+            fillColorBottom: 'rgba(5, 150, 105, 0.03)',
+            yFormatter: (value) => `${value.toFixed(0)}%`,
+            bubbleLabel: (value) => `${value.toFixed(1)}%`,
+            minValue: 0,
+            maxValue: 100
         });
-        ctx.lineTo(padding.left + graphW, padding.top + graphH);
-        ctx.lineTo(padding.left, padding.top + graphH);
-        ctx.closePath();
-        const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + graphH);
-        gradient.addColorStop(0, 'rgba(16, 185, 129, 0.3)');
-        gradient.addColorStop(1, 'rgba(16, 185, 129, 0.02)');
-        ctx.fillStyle = gradient;
-        ctx.fill();
-
-        // Line
-        ctx.strokeStyle = '#10b981';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        measurements.forEach((m, i) => {
-            const x = padding.left + (i / (measurements.length - 1 || 1)) * graphW;
-            const pct = percentValues[i];
-            const y = padding.top + ((100 - pct) / 100) * graphH;
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        });
-        ctx.stroke();
-
-        // Points
-        ctx.fillStyle = '#10b981';
-        measurements.forEach((m, i) => {
-            const x = padding.left + (i / (measurements.length - 1 || 1)) * graphW;
-            const pct = percentValues[i];
-            const y = padding.top + ((100 - pct) / 100) * graphH;
-            ctx.beginPath();
-            ctx.arc(x, y, 4, 0, Math.PI * 2);
-            ctx.fill();
-        });
-
-        // X axis labels
-        ctx.fillStyle = '#6b7280';
-        ctx.font = '20px sans-serif';
-        ctx.textAlign = 'center';
-        const step = Math.max(1, Math.floor(measurements.length / 6));
-        for (let i = 0; i < measurements.length; i += step) {
-            const x = padding.left + (i / (measurements.length - 1 || 1)) * graphW;
-            ctx.save();
-            ctx.translate(x, h - padding.bottom + 15);
-            ctx.rotate(-0.5);
-            ctx.fillText(formatShortDate(measurements[i].timestamp), 0, 0);
-            ctx.restore();
-        }
-
-        // Title
-        ctx.fillStyle = '#1f2937';
-        ctx.font = 'bold 26px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('% naplnenia v čase', w / 2, 22);
     }
 </script>
 
@@ -290,6 +400,25 @@
         padding: 1.5rem;
         max-width: 1200px;
         margin: 0 auto;
+    }
+
+    .status-banner {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+        padding: 0.9rem 1rem;
+        border: 1px solid rgba(217, 119, 6, 0.28);
+        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(255, 247, 237, 0.96), rgba(254, 243, 199, 0.92));
+        color: #9a3412;
+        box-shadow: 0 16px 32px rgba(245, 158, 11, 0.12);
+    }
+
+    .status-banner strong {
+        display: block;
+        margin-bottom: 0.1rem;
+        color: #7c2d12;
     }
     
     .page-header {
@@ -312,12 +441,13 @@
     }
 
     .sensor-select {
-        padding: 0.5rem 1rem;
-        border: 2px solid var(--color-border, #e5e7eb);
-        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        border-radius: 14px;
         font-size: 1rem;
         min-width: 250px;
-        background: white;
+        background: rgba(255, 255, 255, 0.95);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
     }
 
     .sensor-select:focus {
@@ -326,34 +456,29 @@
     }
 
     .btn {
-        padding: 0.5rem 1rem;
-        border-radius: 8px;
+        padding: 0.7rem 1rem;
+        border-radius: 12px;
         font-weight: 600;
         cursor: pointer;
         border: none;
         font-size: 0.875rem;
-        transition: all 0.15s;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    .btn:hover {
+        transform: translateY(-1px);
     }
     
     .btn-primary {
         background: var(--color-primary, #4361ee);
         color: white;
+        box-shadow: 0 14px 28px rgba(67, 97, 238, 0.22);
     }
 
     .btn-primary:hover {
         background: var(--color-secondary, #3a0ca3);
     }
     
-    .btn-secondary {
-        background: var(--color-bg-secondary, #f9fafb);
-        color: var(--color-text-primary, #1f2937);
-        border: 1px solid var(--color-border, #e5e7eb);
-    }
-
-    .btn-secondary:hover {
-        background: var(--color-bg-tertiary, #f3f4f6);
-    }
-
     .controls-right {
         margin-left: auto;
     }
@@ -367,61 +492,115 @@
     }
 
     .graph-card {
-        background: white;
-        border: 1px solid var(--color-border, #e5e7eb);
-        border-radius: 12px;
-        padding: 1.5rem;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 24px;
+        padding: 1.25rem;
         overflow: hidden;
+        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+    }
+
+    .graph-card.distance {
+        border-top: 4px solid #2563eb;
+    }
+
+    .graph-card.percent {
+        border-top: 4px solid #059669;
+    }
+
+    .graph-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .graph-title-block h2 {
+        margin: 0;
+        font-size: 1.1rem;
+        color: #0f172a;
+    }
+
+    .graph-title-block p {
+        margin: 0.35rem 0 0;
+        color: #64748b;
+        font-size: 0.92rem;
+    }
+
+    .graph-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.45rem 0.75rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        color: #334155;
+        font-size: 0.82rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .graph-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        min-width: 0;
+        flex: 1 1 220px;
+        padding: 0.85rem 1rem;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.82);
+        border: 1px solid rgba(226, 232, 240, 0.95);
+    }
+
+    .legend-swatch {
+        width: 0.8rem;
+        height: 0.8rem;
+        border-radius: 999px;
+        flex-shrink: 0;
+        box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.92);
+    }
+
+    .legend-text {
+        min-width: 0;
+    }
+
+    .legend-label {
+        display: block;
+        color: #64748b;
+        font-size: 0.8rem;
+        margin-bottom: 0.15rem;
+    }
+
+    .legend-value {
+        display: block;
+        color: #0f172a;
+        font-size: 1rem;
+        font-weight: 700;
     }
 
     .graph-card canvas {
         width: 100%;
-        height: 200px;
+        height: 340px;
         display: block;
-    }
-
-    /* Command editor */
-    .command-editor {
-        background: white;
-        border: 1px solid var(--color-border, #e5e7eb);
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-    }
-
-    .command-editor h3 {
-        margin-bottom: 0.75rem;
-        font-size: 1.125rem;
-    }
-
-    .command-editor textarea {
-        width: 100%;
-        min-height: 100px;
-        padding: 0.75rem;
-        border: 2px solid var(--color-border, #e5e7eb);
-        border-radius: 8px;
-        font-family: monospace;
-        resize: vertical;
-        box-sizing: border-box;
-    }
-
-    .command-editor .todo-badge {
-        display: inline-block;
-        background: #fef3c7;
-        color: #92400e;
-        padding: 0.25rem 0.75rem;
-        border-radius: 999px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        margin-left: 0.5rem;
+        border-radius: 18px;
     }
 
     /* Danger section */
     .danger-section {
-        background: white;
-        border: 2px solid #fecaca;
-        border-radius: 12px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(254, 242, 242, 0.92));
+        border: 1px solid rgba(252, 165, 165, 0.65);
+        border-radius: 24px;
         padding: 1.5rem;
+        box-shadow: 0 18px 36px rgba(127, 29, 29, 0.08);
     }
 
     .danger-header {
@@ -438,20 +617,6 @@
 
     .danger-icon {
         font-size: 1.5rem;
-    }
-
-    .failure-list {
-        list-style: none;
-        padding: 0;
-    }
-
-    .failure-item {
-        padding: 0.75rem;
-        background: #fef2f2;
-        border-radius: 8px;
-        margin-bottom: 0.5rem;
-        color: #991b1b;
-        font-size: 0.875rem;
     }
 
     .no-failures {
@@ -487,6 +652,10 @@
     }
 
     @media (max-width: 768px) {
+        .dashboard-page {
+            padding: 1rem;
+        }
+
         .controls-row {
             flex-direction: column;
             align-items: stretch;
@@ -499,6 +668,23 @@
         .sensor-select {
             min-width: auto;
         }
+
+        .graph-header {
+            flex-direction: column;
+        }
+
+        .graph-card {
+            padding: 1rem;
+            border-radius: 20px;
+        }
+
+        .graph-card canvas {
+            height: 280px;
+        }
+
+        .legend-item {
+            flex-basis: 100%;
+        }
     }
 </style>
 
@@ -510,6 +696,16 @@
         <h1 class="page-title">📊 Dashboard</h1>
         <p style="color: var(--color-text-secondary, #6b7280);">Vitaj späť, {$user?.username}!</p>
     </div>
+
+    {#if offline}
+        <div class="status-banner">
+            <span>⚠️</span>
+            <div>
+                <strong>Aplikácia je offline.</strong>
+                <span>Zobrazuju sa naposledy uložené dáta a cacheované súbory.</span>
+            </div>
+        </div>
+    {/if}
     
     {#if loading}
         <div class="loading-container">
@@ -536,10 +732,6 @@
                 {/each}
             </select>
 
-            <button class="btn btn-secondary" on:click={() => showCommandEditor = !showCommandEditor}>
-                📤 Odoslať príkazy senzoru
-            </button>
-
             {#if $isAdmin}
                 <div class="controls-right">
                     <button class="btn btn-primary" on:click={() => goto('/sensors')}>
@@ -548,17 +740,6 @@
                 </div>
             {/if}
         </div>
-
-        <!-- Command editor (TODO) -->
-        {#if showCommandEditor}
-            <div class="command-editor">
-                <h3>📤 Príkazy pre senzor <span class="todo-badge">TODO</span></h3>
-                <p style="color: var(--color-text-secondary, #6b7280); margin-bottom: 0.5rem; font-size: 0.875rem;">
-                    Táto funkcia bude v budúcnosti umožňovať administrátorom posielať príkazy na senzor cez MQTT.
-                </p>
-                <textarea placeholder="Sem zadaj príkaz pre senzor..." disabled></textarea>
-            </div>
-        {/if}
 
         <!-- Graphs -->
         {#if loadingMeasurements}
@@ -574,10 +755,46 @@
             </div>
         {:else}
             <div class="graphs-section">
-                <div class="graph-card">
+                <div class="graph-card distance">
+                    <div class="graph-header">
+                        <div class="graph-title-block">
+                            <h2>Vývoj vzdialenosti hladiny</h2>
+                            <p>{selectedSensor?.name} {selectedSensor?.location ? `• ${selectedSensor.location}` : ''}</p>
+                        </div>
+                        <div class="graph-chip">Modrá krivka • centimetre</div>
+                    </div>
+                    <div class="graph-legend">
+                        {#each distanceLegend as item}
+                            <div class="legend-item">
+                                <span class="legend-swatch" style={`background:${item.accent}`}></span>
+                                <div class="legend-text">
+                                    <span class="legend-label">{item.label}</span>
+                                    <span class="legend-value">{item.value}</span>
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
                     <canvas bind:this={distanceCanvas}></canvas>
                 </div>
-                <div class="graph-card">
+                <div class="graph-card percent">
+                    <div class="graph-header">
+                        <div class="graph-title-block">
+                            <h2>Naplnenie nádrže</h2>
+                            <p>Prepočet z výšky nádrže {TANK_HEIGHT_CM} cm s trendom v čase</p>
+                        </div>
+                        <div class="graph-chip">Zelená krivka • percentá</div>
+                    </div>
+                    <div class="graph-legend">
+                        {#each percentLegend as item}
+                            <div class="legend-item">
+                                <span class="legend-swatch" style={`background:${item.accent}`}></span>
+                                <div class="legend-text">
+                                    <span class="legend-label">{item.label}</span>
+                                    <span class="legend-value">{item.value}</span>
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
                     <canvas bind:this={percentCanvas}></canvas>
                 </div>
             </div>
