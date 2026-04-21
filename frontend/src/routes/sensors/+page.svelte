@@ -6,6 +6,7 @@
     import { onMount } from 'svelte';
     import { goto } from '$app/navigation';
     import { isAuthenticated, isAdmin, user } from '$lib/stores/auth';
+    import { isOnline } from '$lib/stores/offline';
     import { 
         getSensors, 
         createSensor, 
@@ -38,6 +39,10 @@
     let editError = '';
     let editing = false;
     
+    // Offline state
+    let offline = false;
+    $: offline = !$isOnline;
+
     // API key / QR code visibility
     let visibleApiKeys: Set<string> = new Set();
     let visibleQrCodes: Set<string> = new Set();
@@ -298,10 +303,68 @@
     }
     
     /* Sensors Grid */
+    .sensors-layout {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .sensors-main {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .offline-sidebar {
+        width: 260px;
+        flex-shrink: 0;
+    }
+
+    .offline-banner {
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+        border-radius: 12px;
+        padding: 1.25rem;
+        text-align: center;
+        position: sticky;
+        top: 1rem;
+    }
+
+    .offline-banner-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .offline-banner-title {
+        font-weight: 700;
+        color: #856404;
+        font-size: 1.125rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .offline-banner-text {
+        color: #856404;
+        font-size: 0.875rem;
+    }
+
+    .status-offline {
+        background: #fff3cd;
+        color: #856404;
+    }
+
     .sensors-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
         gap: 1rem;
+    }
+
+    @media (max-width: 900px) {
+        .sensors-layout {
+            flex-direction: column;
+        }
+
+        .offline-sidebar {
+            width: 100%;
+            order: -1;
+        }
     }
     
     .sensor-card {
@@ -602,14 +665,20 @@
         </div>
     <!-- Sensors Grid -->
     {:else}
+      <div class="sensors-layout">
+        <div class="sensors-main">
         <div class="sensors-grid">
             {#each sensors as sensor (sensor._id)}
                 <div class="sensor-card">
                     <div class="sensor-header">
                         <span class="sensor-name">{sensor.name}</span>
-                        <span class="sensor-status" class:status-active={sensor.isActive} class:status-inactive={!sensor.isActive}>
-                            {sensor.isActive ? 'Aktívny' : 'Neaktívny'}
-                        </span>
+                        {#if offline}
+                            <span class="sensor-status status-offline">Nedá sa zistiť</span>
+                        {:else}
+                            <span class="sensor-status" class:status-active={sensor.isActive} class:status-inactive={!sensor.isActive}>
+                                {sensor.isActive ? 'Aktívny' : 'Neaktívny'}
+                            </span>
+                        {/if}
                     </div>
                     
                     <div class="sensor-info">
@@ -694,6 +763,17 @@
                 </div>
             {/each}
         </div>
+        </div>
+        {#if offline}
+            <div class="offline-sidebar">
+                <div class="offline-banner">
+                    <div class="offline-banner-icon">📡</div>
+                    <div class="offline-banner-title">Ste offline</div>
+                    <div class="offline-banner-text">Zobrazujú sa uložené dáta. Zmeny nie sú možné.</div>
+                </div>
+            </div>
+        {/if}
+      </div>
     {/if}
 </div>
 

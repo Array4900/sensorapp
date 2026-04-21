@@ -44,63 +44,39 @@ app.use('/api/sensors', sensorRoutes);
 app.use('/api/measurements', measurementRoutes);
 app.use('/api/admin', adminRoutes);
 
+
 // ============================================
 // MQTT Subscription - sensor/merania
 // ============================================
-const MQTT_BROKER = process.env.MQTT_BROKER_URL || 'mqtt://localhost:1883';
-const MQTT_TOPIC_MERANIA = 'sensor/merania';
-const MQTT_TOPIC_TEST = 'sensor/test';
+const MQTT_BROKER: string = process.env.MQTT_BROKER_URL as string;
+const MQTT_TOPIC: string = process.env.MQTT_TOPIC as string;
 const MQTT_TOPIC_ACK_PREFIX = 'sensor/ack/';  // + apiKey
 
-const mqttClient = mqtt.connect(MQTT_BROKER);
+const MQTT_OPTIONS = {
+    username: process.env.MQTT_USER,
+    password: process.env.MQTT_PASSWORD,
+    clientId: `api_server_${Math.random().toString(16).slice(3)}`, // Unikátne ID
+    clean: true,
+    reconnectPeriod: 5000
+};
+
+const mqttClient = mqtt.connect(MQTT_BROKER, MQTT_OPTIONS);
 
 mqttClient.on('connect', () => {
     console.log(`MQTT: Pripojený k brokeru ${MQTT_BROKER}`);
-    mqttClient.subscribe([MQTT_TOPIC_MERANIA, MQTT_TOPIC_TEST], (err) => {
+    mqttClient.subscribe([MQTT_TOPIC], (err) => {
         if (err) {
             console.error('MQTT: Chyba pri subscribovaní:', err);
         } else {
-            console.log(`MQTT: Subscribnutý na topicy "${MQTT_TOPIC_MERANIA}", "${MQTT_TOPIC_TEST}"`);
+            console.log(`MQTT: Subscribnutý na topic "${MQTT_TOPIC}"`);
         }
     });
 });
 
 mqttClient.on('message', async (topic: string, message: Buffer) => {
-    // ── Test / handshake ──
-    if (topic === MQTT_TOPIC_TEST) {
-        try {
-            const payload = JSON.parse(message.toString());
-            const { apiKey } = payload;
-
-            if (!apiKey) {
-                console.warn('MQTT TEST: Chýba apiKey:', payload);
-                return;
-            }
-
-            const sensor = await Sensor.findOne({ apiKey });
-            if (!sensor) {
-                console.warn('MQTT TEST: Neplatný API kľúč:', apiKey);
-                mqttClient.publish(`${MQTT_TOPIC_ACK_PREFIX}${apiKey}`, JSON.stringify({
-                    status: 'error',
-                    message: 'Neplatný API kľúč'
-                }));
-                return;
-            }
-
-            // Odošli ACK späť na topic sensor/ack/<apiKey>
-            mqttClient.publish(`${MQTT_TOPIC_ACK_PREFIX}${apiKey}`, JSON.stringify({
-                status: 'ok',
-                sensorName: sensor.name
-            }));
-            console.log(`MQTT TEST: ACK odoslaný pre senzor "${sensor.name}"`);
-        } catch (err) {
-            console.error('MQTT TEST: Chyba pri spracovaní:', err);
-        }
-        return;
-    }
-
+    console.log(`📩 DEBUG: Prišla správa na topic [${topic}] s obsahom: ${message.toString()}`);
     // ── Merania ──
-    if (topic === MQTT_TOPIC_MERANIA) {
+    if (topic === MQTT_TOPIC) {
         try {
             const payload = JSON.parse(message.toString());
             const { apiKey, distance } = payload;
@@ -125,6 +101,13 @@ mqttClient.on('message', async (topic: string, message: Buffer) => {
 
             await newMeasurement.save();
             console.log(`MQTT: Meranie uložené - senzor: ${sensor.name}, vzdialenosť: ${distance} cm`);
+
+            // Odošli ACK späť na topic sensor/ack/<apiKey>
+            mqttClient.publish(`${MQTT_TOPIC_ACK_PREFIX}${apiKey}`, JSON.stringify({
+                status: 'ok',
+                message: 'Meranie uložené'
+            }));
+            console.log(`MQTT: ACK odoslaný pre senzor "${sensor.name}"`);
         } catch (err) {
             console.error('MQTT: Chyba pri spracovaní správy:', err);
         }

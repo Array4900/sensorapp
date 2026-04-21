@@ -6,6 +6,7 @@
     import { goto } from '$app/navigation';
     import { page } from '$app/stores';
     import { isAuthenticated } from '$lib/stores/auth';
+    import { isOnline } from '$lib/stores/offline';
     import { getSensorById, getSensorMeasurements, type Sensor, type Measurement } from '$lib/api';
 
     // ============================================
@@ -17,8 +18,10 @@
     let loading = true;
     let error = '';
     let showApiKey = false;
+    let offline = false;
     
     $: sensorId = $page.params.id;
+    $: offline = !$isOnline;
     
     // ============================================
     // LIFECYCLE
@@ -329,6 +332,32 @@
         overflow-x: auto;
         white-space: pre;
     }
+
+    .offline-notice {
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+        border-radius: var(--radius-lg);
+        padding: var(--space-4);
+        margin-bottom: var(--space-6);
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+    }
+
+    .offline-notice-icon {
+        font-size: 1.5rem;
+        flex-shrink: 0;
+    }
+
+    .offline-notice-text {
+        color: #856404;
+        font-weight: 600;
+    }
+
+    .status-offline {
+        background: #fff3cd;
+        color: #856404;
+    }
 </style>
 
 <!-- ============================================ -->
@@ -350,13 +379,23 @@
             <button class="btn btn-primary" on:click={loadSensorData}>Skúsiť znova</button>
         </div>
     {:else if sensor}
+        {#if offline}
+            <div class="offline-notice">
+                <span class="offline-notice-icon">⚠️</span>
+                <span class="offline-notice-text">Nedá sa načítať nové dáta — ste offline. Zobrazujú sa uložené dáta.</span>
+            </div>
+        {/if}
         <!-- Sensor Info Card -->
         <div class="sensor-header-card">
             <div class="sensor-title">
                 <h1 class="sensor-name">{sensor.name}</h1>
-                <span class="sensor-status" class:status-active={sensor.isActive} class:status-inactive={!sensor.isActive}>
-                    {sensor.isActive ? 'Aktívny' : 'Neaktívny'}
-                </span>
+                {#if offline}
+                    <span class="sensor-status status-offline">Nedá sa zistiť</span>
+                {:else}
+                    <span class="sensor-status" class:status-active={sensor.isActive} class:status-inactive={!sensor.isActive}>
+                        {sensor.isActive ? 'Aktívny' : 'Neaktívny'}
+                    </span>
+                {/if}
             </div>
             
             <div class="sensor-details">
