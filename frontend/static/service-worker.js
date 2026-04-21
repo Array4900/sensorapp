@@ -1,14 +1,15 @@
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v5';
 const PAGE_CACHE = `sensorapp-pages-${CACHE_VERSION}`;
 const STATIC_CACHE = `sensorapp-static-${CACHE_VERSION}`;
 const API_CACHE = `sensorapp-api-${CACHE_VERSION}`;
-const NAVIGATION_TIMEOUT_MS = 2500;
-const API_TIMEOUT_MS = 2500;
+const NAVIGATION_TIMEOUT_MS = 10000;
+const API_TIMEOUT_MS = 8000;
 const STATIC_ASSETS = ['/', '/manifest.json', '/icon-192x192.png', '/icon-512x512.png'];
 const CACHEABLE_API_PATTERNS = [
   /\/api\/sensors$/,
   /\/api\/sensors\/[^/]+$/,
-  /\/api\/sensors\/[^/]+\/measurements$/
+  /\/api\/sensors\/[^/]+\/measurements$/,
+  /\/api\/push\/history$/
 ];
 
 function isApiRequest(url) {
@@ -33,8 +34,10 @@ async function cacheResponse(cacheName, request, response) {
     return;
   }
 
+  const responseToCache = response.clone();
+
   const cache = await caches.open(cacheName);
-  await cache.put(request, response.clone());
+  await cache.put(request, responseToCache);
 }
 
 async function fetchWithTimeout(request, timeoutMs) {
@@ -111,6 +114,21 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+
+  if (request.method === 'OPTIONS' && isApiRequest(request.url)) {
+    event.respondWith(
+      new Response(null, {
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': self.location.origin,
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
+          'Access-Control-Allow-Headers': 'Authorization, Content-Type'
+        }
+      })
+    );
+    return;
+  }
 
   if (request.method !== 'GET') {
     return;

@@ -75,13 +75,14 @@
         loading = true;
         error = '';
         try {
-            const [sensorData, notificationData] = await Promise.all([
-                getSensors(),
-                getSentNotifications()
-            ]);
+            sensors = await getSensors();
 
-            sensors = sensorData;
-            notifications = notificationData;
+            try {
+                notifications = await getSentNotifications();
+            } catch (notificationError) {
+                notifications = [];
+            }
+
             if (sensors.length > 0) {
                 selectedSensorId = sensors[0]._id;
                 await loadMeasurements();

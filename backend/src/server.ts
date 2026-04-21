@@ -15,17 +15,31 @@ import { handleThresholdNotification, startDailySensorNotificationScheduler } fr
 import Sensor from './models/Sensor.js';
 import Measurement from './models/Measurement.js';
 
-const app = express();
-app.use(cors( {
-    origin: [
-        'https://sahur.sk',
-        'https://www.sahur.sk',
-        'https://api.sahur.sk',
-        'http://localhost:3000'
+const allowedOrigins = new Set([
+    'https://sahur.sk',
+    'https://www.sahur.sk',
+    'https://api.sahur.sk',
+    'http://localhost:3000'
+]);
 
-    ],
-    credentials: true
-}));
+const corsOptions: cors.CorsOptions = {
+    origin(origin, callback) {
+        if (!origin || allowedOrigins.has(origin)) {
+            callback(null, true);
+            return;
+        }
+
+        callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    optionsSuccessStatus: 204
+};
+
+const app = express();
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 
 dotenv.config();
 console.log("Moja URI:", process.env.MONGO_URI);

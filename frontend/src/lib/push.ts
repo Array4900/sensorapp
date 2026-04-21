@@ -1,9 +1,10 @@
 import { browser } from '$app/environment';
 import { env } from '$env/dynamic/public';
 
-const API_BASE = env.PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_BASE = '/api';
 const PUBLIC_VAPID_KEY = env.PUBLIC_VAPID_PUBLIC_KEY || '';
-const SERVICE_WORKER_URL = '/service-worker.js';
+const SERVICE_WORKER_VERSION = 'v5';
+const SERVICE_WORKER_URL = `/service-worker.js?v=${SERVICE_WORKER_VERSION}`;
 
 function getAuthHeaders(token: string): HeadersInit {
   return {
@@ -69,12 +70,10 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
     return null;
   }
 
-  const existing = await navigator.serviceWorker.getRegistration('/');
-  if (existing?.active?.scriptURL.endsWith(SERVICE_WORKER_URL)) {
-    return existing;
-  }
-
-  return navigator.serviceWorker.register(SERVICE_WORKER_URL, { scope: '/' });
+  return navigator.serviceWorker.register(SERVICE_WORKER_URL, {
+    scope: '/',
+    updateViaCache: 'none'
+  });
 }
 
 export async function hasPushSubscription(): Promise<boolean> {
@@ -136,7 +135,7 @@ export async function subscribeToPush(token: string): Promise<boolean> {
   if (!subscription) {
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: base64UrlToUint8Array(PUBLIC_VAPID_KEY)
+      applicationServerKey: base64UrlToUint8Array(PUBLIC_VAPID_KEY) as any
     });
   }
 

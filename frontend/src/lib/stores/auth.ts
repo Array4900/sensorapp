@@ -12,7 +12,6 @@
 
 import { writable, derived, type Writable, type Readable } from 'svelte/store';
 import { browser } from '$app/environment';
-import { env } from '$env/dynamic/public';
 import { markOffline, markOnline } from './offline';
 
 // ============================================
@@ -75,8 +74,7 @@ interface ErrorResponse {
 // CONFIGURATION
 // ============================================
 
-// pouzi localhost pri neexistujucej env pre vyvoj
-const API_BASE = env.PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 /** LocalStorage keys */
 const STORAGE_KEYS = {
@@ -251,9 +249,15 @@ async function authFetch(
     })();
     
     const headers: HeadersInit = {
-        'Content-Type': 'application/json',
         ...(options.headers || {}),
     };
+
+    const method = (options.method || 'GET').toUpperCase();
+    const hasBody = options.body !== undefined && options.body !== null;
+
+    if (hasBody && !(headers instanceof Headers ? headers.has('Content-Type') : 'Content-Type' in headers)) {
+        (headers as Record<string, string>)['Content-Type'] = 'application/json';
+    }
     
     if (currentToken) {
         (headers as Record<string, string>)['Authorization'] = `Bearer ${currentToken}`;
@@ -262,6 +266,7 @@ async function authFetch(
     try {
         const response = await fetch(`${API_BASE}${endpoint}`, {
             ...options,
+            method,
             headers
         });
 
