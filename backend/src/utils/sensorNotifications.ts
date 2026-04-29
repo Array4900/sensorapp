@@ -7,6 +7,7 @@ type ThresholdLevel = 'none' | 'warning' | 'almost_full' | 'critical';
 const DAILY_NOTIFICATION_TIMEZONE = 'Europe/Bratislava';
 const DAILY_NOTIFICATION_HOUR = 9;
 const DAILY_CHECK_INTERVAL_MS = 60 * 1000;
+const THRESHOLD_NOTIFICATION_COOLDOWN_MS = 3 * 60 * 60 * 1000;
 
 function resolveThresholdLevel(distanceCm: number): ThresholdLevel {
     if (distanceCm <= 25) {
@@ -74,35 +75,52 @@ function getBratislavaDateParts(now: Date = new Date()): { dateKey: string; hour
 }
 
 export async function handleThresholdNotification(sensorDocument: any, distanceCm: number): Promise<void> {
+    if (!sensorDocument.owner || !pushNotificationsConfigured()) {
+        return;
+    }
+
     const currentLevel = resolveThresholdLevel(distanceCm);
     const previousLevel = (sensorDocument.lastThresholdNotificationLevel || 'none') as ThresholdLevel;
+    const lastSentAt = sensorDocument.lastThresholdNotificationSentAt
+        ? new Date(sensorDocument.lastThresholdNotificationSentAt)
+        : null;
+    const now = new Date();
 
     if (currentLevel === 'none') {
-        if (previousLevel !== 'none') {
+        if (previousLevel !== 'none' || sensorDocument.lastThresholdNotificationSentAt) {
             sensorDocument.lastThresholdNotificationLevel = 'none';
+            sensorDocument.lastThresholdNotificationSentAt = null;
             await sensorDocument.save();
         }
 
         return;
     }
 
-    if (getThresholdSeverity(currentLevel) > getThresholdSeverity(previousLevel)) {
-        await sendNotificationToUser(
-            sensorDocument.owner,
-            {
-                title: sensorDocument.name,
-                body: getThresholdBody(currentLevel),
-                url: '/dashboard'
-            },
-            {
-                category: 'threshold',
-                sensorName: sensorDocument.name
-            }
-        );
+    const severityIncreased = getThresholdSeverity(currentLevel) > getThresholdSeverity(previousLevel);
+    const levelChanged = currentLevel !== previousLevel;
+    const cooldownExpired = !lastSentAt || now.getTime() - lastSentAt.getTime() >= THRESHOLD_NOTIFICATION_COOLDOWN_MS;
+    const shouldNotify = previousLevel === 'none' || severityIncreased || levelChanged || cooldownExpired;
 
-        sensorDocument.lastThresholdNotificationLevel = currentLevel;
-        await sensorDocument.save();
+    if (!shouldNotify) {
+        return;
     }
+
+    await sendNotificationToUser(
+        sensorDocument.owner,
+        {
+            title: sensorDocument.name,
+            body: getThresholdBody(currentLevel),
+            url: '/dashboard'
+        },
+        {
+            category: 'threshold',
+            sensorName: sensorDocument.name
+        }
+    );
+
+    sensorDocument.lastThresholdNotificationLevel = currentLevel;
+    sensorDocument.lastThresholdNotificationSentAt = now;
+    await sensorDocument.save();
 }
 
 async function sendDailyNotificationForSensor(sensorDocument: any, dateKey: string): Promise<void> {

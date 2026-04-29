@@ -48,6 +48,10 @@ const sensorSchema = new mongoose.Schema(
             enum: ['none', 'warning', 'almost_full', 'critical'],
             default: 'none'
         },
+        lastThresholdNotificationSentAt: {
+            type: Date,
+            default: null
+        },
         lastDailyNotificationDate: {
             type: String,
             default: ''

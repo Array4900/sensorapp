@@ -120,7 +120,11 @@ mqttClient.on('message', async (topic: string, message: Buffer) => {
         }
 
         const distanceCm = parseFloat(distance);
-        
+
+        if (distanceCm < 20 || distanceCm > 580) {
+            console.warn(`!! MQTT: Neplatná hodnota vzdialenosti (Kľúč: ${apiKey}, MAC: ${macFromTopic}, Hodnota: ${distanceCm})`);
+            return;
+        }
 
         const newMeasurement = new Measurement({
             sensor: sensor._id,
@@ -132,6 +136,8 @@ mqttClient.on('message', async (topic: string, message: Buffer) => {
 
         await newMeasurement.save();
         console.log(`✅ MQTT: Meranie uložené pre ${sensor.name}: ${distanceCm} cm`);
+
+        await handleThresholdNotification(sensor, distanceCm);
 
         // ACK posielajte na statický topic bez pluska
         const ackTopic = `sensor/${macFromTopic}/ack`;

@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import Sensor from "../models/Sensor.js";
 import Measurement from '../models/Measurement.js';
+import { handleThresholdNotification } from '../utils/sensorNotifications.js';
 
 interface AuthRequest extends Request {
     user?: { username: string; role: string };
@@ -34,6 +35,8 @@ export const addMeasurement = async (req: Request, res: Response) => {
         });
 
         await newMeasurement.save();
+
+        await handleThresholdNotification(sensor, Number(value));
 
         // 4. Odpoveď pre zariadenie (senzor) posielajúce dáta, napr ESP32
         return res.status(201).json({ message: "Data successfully saved." });
