@@ -1,0 +1,3 @@
+export enum SensorType {
+    ULTRASONIC_AJ_SR04M_GEN1  = "ULTRASONIC_AJ_SR04M_GEN1"
+}
