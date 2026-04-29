@@ -1,6 +1,5 @@
 <!--
   Sensors Page - View and manage sensors
-  Admin can create sensors; all users can view their own sensors
 -->
 <script lang="ts">
     import { onMount } from 'svelte';
@@ -8,12 +7,14 @@
     import { isAuthenticated, isAdmin, user } from '$lib/stores/auth';
     import { isOnline } from '$lib/stores/offline';
     import { 
+        getSensorTypes,
         getSensors, 
         createSensor, 
         updateSensor,
         deleteSensor, 
         type Sensor, 
-        type CreateSensorData 
+        type CreateSensorData,
+        type SensorTypeDefinition
     } from '$lib/api';
 
     // ============================================
@@ -27,25 +28,31 @@
     // Add sensor form state
     let showAddForm = false;
     let newSensorName = '';
-    let newSensorLocation = '';
+    let newSensorType = '';
+    let newSensorMacAddress = '';
+    let newSensorTankHeight = 0;
     let newSensorOwner = '';
+    let sensorTypes: SensorTypeDefinition[] = [];
     let addError = '';
     let adding = false;
     
     // Edit sensor modal state
     let showEditModal = false;
     let editingSensor: Sensor | null = null;
-    let editSensorData = { name: '', location: '', isActive: true };
+    let editSensorData = { name: '', tankHeight: 0, isActive: true };
     let editError = '';
     let editing = false;
     
     // Offline state
     let offline = false;
     $: offline = !$isOnline;
+    $: selectedSensorTypeObj = sensorTypes.find((typeDef) => typeDef.id === newSensorType) || null;
+    $: hasSingleSensorType = sensorTypes.length === 1;
 
     // API key / QR code visibility
     let visibleApiKeys: Set<string> = new Set();
     let visibleQrCodes: Set<string> = new Set();
+    let visibleMacAddresses: Set<string> = new Set();
     
     // ============================================
     // LIFECYCLE
@@ -68,7 +75,17 @@
         loading = true;
         error = '';
         try {
-            sensors = await getSensors();
+            const [sensorsData, sensorTypesData] = await Promise.all([
+                getSensors(),
+                getSensorTypes()
+            ]);
+
+            sensors = sensorsData;
+            sensorTypes = sensorTypesData;
+
+            if (sensorTypes.length === 1 && !newSensorType) {
+                newSensorType = sensorTypes[0].id;
+            }
         } catch (e) {
             error = (e as Error).message || 'Nepodarilo sa načítať dáta';
         } finally {
@@ -82,19 +99,22 @@
         adding = true;
         
         try {
+            normalizeMacAddress();
             const sensorData: CreateSensorData = {
                 name: newSensorName,
+                macAddress: newSensorMacAddress,
+                type: newSensorType,
+                tankHeight: newSensorTankHeight
             };
-            if (newSensorLocation.trim()) {
-                sensorData.location = newSensorLocation.trim();
-            }
             if (newSensorOwner.trim()) {
                 sensorData.owner = newSensorOwner.trim();
             }
             const sensor = await createSensor(sensorData);
             sensors = [sensor, ...sensors];
             newSensorName = '';
-            newSensorLocation = '';
+            newSensorType = sensorTypes.length === 1 ? sensorTypes[0].id : '';
+            newSensorMacAddress = '';
+            newSensorTankHeight = 0;
             newSensorOwner = '';
             showAddForm = false;
         } catch (e) {
@@ -108,7 +128,7 @@
         editingSensor = sensor;
         editSensorData = {
             name: sensor.name,
-            location: sensor.location || '',
+            tankHeight: sensor.tankHeight,
             isActive: sensor.isActive
         };
         editError = '';
@@ -125,7 +145,7 @@
         try {
             const updatedSensor = await updateSensor(editingSensor._id, {
                 name: editSensorData.name,
-                location: editSensorData.location,
+                tankHeight: editSensorData.tankHeight,
                 isActive: editSensorData.isActive
             });
             sensors = sensors.map(s => s._id === updatedSensor._id ? updatedSensor : s);
@@ -168,9 +188,32 @@
         }
         visibleQrCodes = visibleQrCodes;
     }
+
+    function toggleMacAddressVisibility(id: string) {
+        if (visibleMacAddresses.has(id)) {
+            visibleMacAddresses.delete(id);
+        } else {
+            visibleMacAddresses.add(id);
+        }
+        visibleMacAddresses = visibleMacAddresses;
+    }
     
     function copyApiKey(apiKey: string) {
         navigator.clipboard.writeText(apiKey);
+    }
+
+    function copyMacAddress(macAddress: string) {
+        navigator.clipboard.writeText(macAddress);
+    }
+
+    function normalizeMacAddress() {
+        newSensorMacAddress = newSensorMacAddress.trim().toUpperCase();
+    }
+
+    // TODO: Implement hardware initialization logic
+    function handleInitializeHW(sensorId: string) {
+        console.log('Initialize HW for sensor:', sensorId);
+        // TODO: Add implementation in next session - should probably send a command to the sensor
     }
 </script>
 
@@ -287,6 +330,32 @@
     .field input:focus {
         outline: none;
         border-color: var(--color-primary, #4361ee);
+    }
+
+    .field input:disabled {
+        background-color: var(--color-bg-secondary, #f9fafb);
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+
+    .field select {
+        padding: 0.5rem 0.75rem;
+        border: 2px solid var(--color-border, #e5e7eb);
+        border-radius: 8px;
+        font-size: 1rem;
+        background-color: white;
+        cursor: pointer;
+    }
+
+    .field select:focus {
+        outline: none;
+        border-color: var(--color-primary, #4361ee);
+    }
+
+    .field select:disabled {
+        background-color: var(--color-bg-secondary, #f9fafb);
+        cursor: not-allowed;
+        opacity: 0.6;
     }
     
     .form-actions {
@@ -583,7 +652,7 @@
         <h1 class="page-title">📡 Moje senzory</h1>
         <div>
             {#if $isAdmin}
-                <button class="btn btn-primary" on:click={() => showAddForm = !showAddForm}>
+                <button class="btn btn-primary" disabled={offline} on:click={() => showAddForm = !showAddForm}>
                     {showAddForm ? '✕ Zrušiť' : '+ Pridať senzor'}
                 </button>
             {/if}
@@ -593,46 +662,98 @@
     <!-- Add Sensor Form (admin only) -->
     {#if showAddForm && $isAdmin}
         <div class="form-container">
-            <h3 class="form-title">Nový senzor (HladinomerESP)</h3>
+            <h3 class="form-title">Nový senzor - Konfigurácia</h3>
             {#if addError}
                 <div class="form-error">{addError}</div>
             {/if}
             <form class="form-grid" on:submit={handleAddSensor}>
                 <div class="form-row">
                     <div class="field">
-                        <label for="name">Názov</label>
+                        <label for="name">Názov <span style="color: red;">*</span></label>
                         <input 
                             id="name" 
                             type="text" 
                             bind:value={newSensorName} 
                             placeholder="Napr. Hladinomer nádrž 1"
                             required
+                            disabled={offline}
                         />
                     </div>
                     <div class="field">
-                        <label for="location">Umiestnenie (voliteľné)</label>
-                        <input 
-                            id="location" 
-                            type="text" 
-                            bind:value={newSensorLocation} 
-                            placeholder="Napr. Pivnica, Záhrada..."
-                        />
-                    </div>
-                    <div class="field">
-                        <label for="owner">Vlastník (voliteľný)</label>
-                        <input 
-                            id="owner" 
-                            type="text" 
-                            bind:value={newSensorOwner} 
-                            placeholder="Username (inak vy)"
-                        />
+                        <label for="sensorType">Typ senzora <span style="color: red;">*</span></label>
+                        <select 
+                            id="sensorType" 
+                            bind:value={newSensorType} 
+                            required
+                            disabled={offline || hasSingleSensorType || sensorTypes.length === 0}
+                        >
+                            {#if !hasSingleSensorType}
+                                <option value="">-- Vyber typ senzora --</option>
+                            {/if}
+                            {#each sensorTypes as sensorType}
+                                <option value={sensorType.id}>{sensorType.label}</option>
+                            {/each}
+                        </select>
                     </div>
                 </div>
+
+                {#if newSensorType}
+                    <div class="form-row">
+                        <div class="field">
+                            <label for="macAddress">MAC Adresa <span style="color: red;">*</span></label>
+                            <input 
+                                id="macAddress" 
+                                type="text" 
+                                bind:value={newSensorMacAddress} 
+                                on:blur={normalizeMacAddress}
+                                placeholder="Napr. AA:BB:CC:DD:EE:FF"
+                                title="Zadajte MAC adresu vo formáte XX:XX:XX:XX:XX:XX"
+                                required
+                                disabled={offline}
+                            />
+                        </div>
+                    </div>
+
+                    {#if selectedSensorTypeObj?.params.includes('tankHeight')}
+                        <div class="form-row">
+                            <div class="field">
+                                <label for="tankHeight">Výška Nádrže (cm) <span style="color: red;">*</span></label>
+                                <input 
+                                    id="tankHeight" 
+                                    type="number" 
+                                    bind:value={newSensorTankHeight} 
+                                    placeholder="Napr. 200"
+                                    required
+                                    min="1"
+                                    disabled={offline}
+                                />
+                            </div>
+                        </div>
+                    {/if}
+
+                    <div class="form-row">
+                        <div class="field">
+                            <label for="owner">Vlastník (voliteľný)</label>
+                            <input 
+                                id="owner" 
+                                type="text" 
+                                bind:value={newSensorOwner} 
+                                placeholder="Username (inak vy)"
+                                disabled={offline}
+                            />
+                        </div>
+                    </div>
+                {/if}
+
+                {#if sensorTypes.length === 0}
+                    <div class="form-error">Typy senzorov sa nepodarilo načítať.</div>
+                {/if}
+
                 <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" on:click={() => showAddForm = false}>
+                    <button type="button" class="btn btn-secondary" on:click={() => showAddForm = false} disabled={offline}>
                         Zrušiť
                     </button>
-                    <button type="submit" class="btn btn-primary" disabled={adding}>
+                    <button type="submit" class="btn btn-primary" disabled={adding || offline || !newSensorType || sensorTypes.length === 0}>
                         {adding ? 'Vytváranie...' : 'Vytvoriť senzor'}
                     </button>
                 </div>
@@ -673,18 +794,18 @@
                     <div class="sensor-header">
                         <span class="sensor-name">{sensor.name}</span>
                         {#if offline}
-                            <span class="sensor-status status-offline">Nedá sa zistiť</span>
+                            <span class="sensor-status status-offline">Stav: Nedá sa zistiť</span>
                         {:else}
                             <span class="sensor-status" class:status-active={sensor.isActive} class:status-inactive={!sensor.isActive}>
-                                {sensor.isActive ? 'Aktívny' : 'Neaktívny'}
+                                {sensor.isActive ? 'Stav: Aktívny' : 'Stav: Neaktívny'}
                             </span>
                         {/if}
                     </div>
                     
                     <div class="sensor-info">
                         <div class="info-row">
-                            <span class="info-label">📍 Lokácia:</span>
-                            <span class="info-value">{sensor.location || 'Nezadaná'}</span>
+                            <span class="info-label">📏 Výška:</span>
+                            <span class="info-value">{sensor.tankHeight} cm</span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">🔧 Typ:</span>
@@ -707,6 +828,7 @@
                                 <button 
                                     class="btn btn-small btn-secondary" 
                                     on:click={() => toggleApiKeyVisibility(sensor._id)}
+                                    disabled={offline}
                                 >
                                     {visibleApiKeys.has(sensor._id) ? '🔒 Skryť' : '👁️ Zobraziť'}
                                 </button>
@@ -714,12 +836,14 @@
                                     <button 
                                         class="btn btn-small btn-secondary" 
                                         on:click={() => copyApiKey(sensor.apiKey)}
+                                        disabled={offline}
                                     >
                                         📋 Kopírovať
                                     </button>
                                     <button 
                                         class="btn btn-small btn-secondary" 
                                         on:click={() => toggleQrCodeVisibility(sensor._id)}
+                                        disabled={offline}
                                     >
                                         {visibleQrCodes.has(sensor._id) ? '✕ QR' : '📱 QR kód'}
                                     </button>
@@ -739,11 +863,50 @@
                             </div>
                         {/if}
                     </div>
+
+                    <div class="api-key-section">
+                        <div class="api-key-header">
+                            <span class="api-key-label">🔌 MAC Adresa</span>
+                            <div class="api-key-actions">
+                                <button 
+                                    class="btn btn-small btn-secondary" 
+                                    on:click={() => toggleMacAddressVisibility(sensor._id)}
+                                    disabled={offline}
+                                >
+                                    {visibleMacAddresses.has(sensor._id) ? '🔒 Skryť' : '👁️ Zobraziť'}
+                                </button>
+                                {#if visibleMacAddresses.has(sensor._id)}
+                                    <button 
+                                        class="btn btn-small btn-secondary" 
+                                        on:click={() => copyMacAddress(sensor.macAddress)}
+                                        disabled={offline}
+                                    >
+                                        📋 Kopírovať
+                                    </button>
+                                {/if}
+                            </div>
+                        </div>
+                        <div class="api-key-value">
+                            {#if visibleMacAddresses.has(sensor._id)}
+                                {sensor.macAddress}
+                            {:else}
+                                <span class="api-key-hidden">••••••••••••••••••••••••</span>
+                            {/if}
+                        </div>
+                    </div>
                     
                     <div class="sensor-actions">
                         <button 
                             class="btn btn-small btn-secondary" 
+                            on:click={() => handleInitializeHW(sensor._id)}
+                            disabled={offline}
+                        >
+                            ⚙️ Init. HW
+                        </button>
+                        <button 
+                            class="btn btn-small btn-secondary" 
                             on:click={() => openEditModal(sensor)}
+                            disabled={offline}
                         >
                             ✏️ Upraviť
                         </button>
@@ -756,6 +919,7 @@
                         <button 
                             class="btn btn-small btn-danger" 
                             on:click={() => handleDeleteSensor(sensor._id)}
+                            disabled={offline}
                         >
                             🗑️ Vymazať
                         </button>
@@ -797,8 +961,8 @@
                 </div>
                 
                 <div class="field">
-                    <label for="editLocation">Umiestnenie</label>
-                    <input id="editLocation" type="text" bind:value={editSensorData.location} placeholder="Napr. Pivnica, Záhrada..." />
+                    <label for="editTankHeight">Výška Nádrže (cm)</label>
+                    <input id="editTankHeight" type="number" bind:value={editSensorData.tankHeight} required min="1" />
                 </div>
                 
                 <div class="field checkbox-field">

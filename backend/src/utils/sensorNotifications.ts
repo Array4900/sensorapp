@@ -114,8 +114,9 @@ async function sendDailyNotificationForSensor(sensorDocument: any, dateKey: stri
     await sendNotificationToUser(
         sensorDocument.owner,
         {
-            title: `${sensorDocument.name} - Denný stav`,
-            body: `Aktuálna vzdialenosť je ${formatDistance(latestMeasurement.value)} cm.`,
+            title: `${sensorDocument.name} - Stav senzora k ${latestMeasurement.timestamp.toLocaleString('sk-SK', { timeZone: DAILY_NOTIFICATION_TIMEZONE })}`,
+            body: `Aktuálna vzdialenosť je ${formatDistance(latestMeasurement.value)} cm. \n` +
+            `teplota je ${latestMeasurement.temperatureC !== undefined && latestMeasurement.temperatureC !== null ? formatDistance(latestMeasurement.temperatureC) + ' °C' : 'neznáma'}`,
             url: '/dashboard'
         },
         {

@@ -32,6 +32,9 @@ export interface StoredPushSubscription {
 
 let isConfigured = false;
 
+const DEFAULT_NOTIFICATION_ICON = '/icon-192x192.png';
+const DEFAULT_NOTIFICATION_BADGE = '/icon-192x192.png';
+
 export function configurePushNotifications(): void {
     if (isConfigured) {
         return;
@@ -59,7 +62,14 @@ export async function sendPushMessage(subscription: StoredPushSubscription, payl
         throw new Error('Push notifications are not configured.');
     }
 
-    await webpush.sendNotification(subscription, JSON.stringify(payload));
+    await webpush.sendNotification(
+        subscription,
+        JSON.stringify({
+            ...payload,
+            icon: payload.icon || DEFAULT_NOTIFICATION_ICON,
+            badge: payload.badge || DEFAULT_NOTIFICATION_BADGE
+        })
+    );
 }
 
 export async function sendNotificationToUser(

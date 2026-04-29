@@ -15,6 +15,10 @@ const measurementSchema = new mongoose.Schema(
             type: String,
             required: true
         },
+        temperatureC: {
+            type: Number,
+            required: false
+        },
         timestamp: {
             type: Date,
             default: Date.now

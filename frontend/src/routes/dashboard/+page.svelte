@@ -32,7 +32,7 @@
     let percentCanvas: HTMLCanvasElement;
 
     // Sensor config (pre výpočet % naplnenia)
-    const TANK_HEIGHT_CM = 200; // celková výška nádrže v cm
+    // NOTE: tankHeight is now dynamically taken from the selected sensor
 
     $: offline = !$isOnline;
     $: selectedSensor = sensors.find((sensor) => sensor._id === selectedSensorId) ?? null;
@@ -136,8 +136,9 @@
 
     function calculatePercent(distanceCm: number): number {
         // Vzdialenosť od senzora k hladine → čím menšia vzdialenosť, tým viac naplnená
-        const filled = TANK_HEIGHT_CM - distanceCm;
-        const percent = (filled / TANK_HEIGHT_CM) * 100;
+        const tankHeight = selectedSensor?.tankHeight || 200; // fallback to 200 if not set
+        const filled = tankHeight - distanceCm;
+        const percent = (filled / tankHeight) * 100;
         return Math.max(0, Math.min(100, parseFloat(percent.toFixed(1))));
     }
 
@@ -164,12 +165,13 @@
 
         const values = data.map((measurement) => calculatePercent(measurement.value));
         const latest = values[values.length - 1];
+        const tankHeight = selectedSensor?.tankHeight || 200;
 
         return [
             { label: 'Aktuálne naplnenie', value: `${latest.toFixed(1)}%`, accent: '#059669' },
             { label: 'Minimum', value: `${Math.min(...values).toFixed(1)}%`, accent: '#0f766e' },
             { label: 'Maximum', value: `${Math.max(...values).toFixed(1)}%`, accent: '#ca8a04' },
-            { label: 'Kapacita nádrže', value: `${TANK_HEIGHT_CM} cm`, accent: '#475569' }
+            { label: 'Kapacita nádrže', value: `${tankHeight} cm`, accent: '#475569' }
         ];
     }
 
@@ -785,7 +787,7 @@
         <div class="controls-row">
             <select class="sensor-select" bind:value={selectedSensorId} on:change={handleSensorChange}>
                 {#each sensors as sensor (sensor._id)}
-                    <option value={sensor._id}>{sensor.name} {sensor.location ? `(${sensor.location})` : ''}</option>
+                    <option value={sensor._id}>{sensor.name} </option>
                 {/each}
             </select>
 
@@ -816,7 +818,7 @@
                     <div class="graph-header">
                         <div class="graph-title-block">
                             <h2>Vývoj vzdialenosti hladiny</h2>
-                            <p>{selectedSensor?.name} {selectedSensor?.location ? `• ${selectedSensor.location}` : ''}</p>
+                            <p>{selectedSensor?.name} </p>
                         </div>
                         <div class="graph-chip">Modrá krivka • centimetre</div>
                     </div>
@@ -837,7 +839,7 @@
                     <div class="graph-header">
                         <div class="graph-title-block">
                             <h2>Naplnenie nádrže</h2>
-                            <p>Prepočet z výšky nádrže {TANK_HEIGHT_CM} cm s trendom v čase</p>
+                            <p>Prepočet z výšky nádrže {selectedSensor?.tankHeight || 200} cm s trendom v čase</p>
                         </div>
                         <div class="graph-chip">Zelená krivka • percentá</div>
                     </div>

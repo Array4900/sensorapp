@@ -763,7 +763,6 @@
                                                     {#each userSensors[user.username] as sensor (sensor._id)}
                                                         <tr>
                                                             <td>{sensor.name}</td>
-                                                    <td>{sensor.location || 'Bez lokácie'}</td>
                                                             <td>{sensor.type}</td>
                                                             <td>
                                                                 <span class="sensor-status" class:status-active={sensor.isActive} class:status-inactive={!sensor.isActive}>
@@ -820,8 +819,9 @@
                                 <tr>
                                     <td>{sensor.name}</td>
                                     <td>{sensor.owner}</td>
-                                    <td>{sensor.location || 'Bez lokácie'}</td>
+                                    <td>{sensor.macAddress}</td>
                                     <td>{sensor.type}</td>
+                                    <td>{sensor.lastMeasurement}</td>
                                     <td>
                                         <span class="sensor-status" class:status-active={sensor.isActive} class:status-inactive={!sensor.isActive}>
                                             {sensor.isActive ? 'Aktívny' : 'Neaktívny'}

@@ -7,7 +7,7 @@
     import { page } from '$app/stores';
     import { isAuthenticated } from '$lib/stores/auth';
     import { isOnline } from '$lib/stores/offline';
-    import { getSensorById, getSensorMeasurements, type Sensor, type Measurement } from '$lib/api';
+    import { getSensorById, getSensorMeasurementsPage, deleteMeasurements, type Sensor, type Measurement } from '$lib/api';
 
     // ============================================
     // STATE
@@ -18,10 +18,18 @@
     let loading = true;
     let error = '';
     let showApiKey = false;
+    let showMacAddress = false;
     let offline = false;
+    let currentPage = 1;
+    let totalMeasurements = 0;
+    let measurementsPerPage = 20;
+    let selectedMeasurementIds: string[] = [];
+    let deletingMeasurements = false;
     
     $: sensorId = $page.params.id;
     $: offline = !$isOnline;
+    $: totalPages = Math.ceil(totalMeasurements / measurementsPerPage);
+    $: allVisibleMeasurementsSelected = measurements.length > 0 && measurements.every((measurement) => selectedMeasurementIds.includes(measurement._id));
     
     // ============================================
     // LIFECYCLE
@@ -44,22 +52,78 @@
         loading = true;
         error = '';
         try {
-            const [sensorData, measurementsData] = await Promise.all([
-                getSensorById(sensorId ?? "null"),
-                getSensorMeasurements(sensorId ?? "null")
-            ]);
-            sensor = sensorData;
-            measurements = measurementsData;
+            sensor = await getSensorById(sensorId ?? "null");
+            const measurementsData = await getSensorMeasurementsPage(sensorId ?? "null", currentPage, measurementsPerPage);
+            measurements = measurementsData.measurements;
+            totalMeasurements = measurementsData.total;
+            selectedMeasurementIds = [];
         } catch (e) {
             error = (e as Error).message || 'Nepodarilo sa načítať dáta';
         } finally {
             loading = false;
         }
     }
+
+    async function goToPage(page: number) {
+        if (page >= 1 && page <= totalPages) {
+            currentPage = page;
+            await loadSensorData();
+        }
+    }
+
+    function toggleMeasurementSelection(measurementId: string) {
+        if (selectedMeasurementIds.includes(measurementId)) {
+            selectedMeasurementIds = selectedMeasurementIds.filter((id) => id !== measurementId);
+            return;
+        }
+
+        selectedMeasurementIds = [...selectedMeasurementIds, measurementId];
+    }
+
+    function toggleSelectAllMeasurements() {
+        if (allVisibleMeasurementsSelected) {
+            selectedMeasurementIds = [];
+            return;
+        }
+
+        selectedMeasurementIds = measurements.map((measurement) => measurement._id);
+    }
+
+    async function handleDeleteSelectedMeasurements() {
+        if (selectedMeasurementIds.length === 0) {
+            return;
+        }
+
+        if (!confirm(`Naozaj chcete vymazať ${selectedMeasurementIds.length} vybraných meraní?`)) {
+            return;
+        }
+
+        if (!sensor) return;
+
+        deletingMeasurements = true;
+        try {
+            const { deletedCount } = await deleteMeasurements(sensor._id, selectedMeasurementIds);
+            const nextTotal = Math.max(totalMeasurements - deletedCount, 0);
+            const nextTotalPages = Math.max(1, Math.ceil(nextTotal / measurementsPerPage));
+
+            currentPage = Math.min(currentPage, nextTotalPages);
+            await loadSensorData();
+        } catch (e) {
+            error = (e as Error).message || 'Nepodarilo sa vymazať merania';
+        } finally {
+            deletingMeasurements = false;
+        }
+    }
     
     function copyApiKey() {
         if (sensor) {
             navigator.clipboard.writeText(sensor.apiKey);
+        }
+    }
+
+    function copyMacAddress() {
+        if (sensor) {
+            navigator.clipboard.writeText(sensor.macAddress);
         }
     }
     
@@ -253,8 +317,29 @@
     .section-title {
         font-size: var(--font-size-xl);
         font-weight: 600;
-        margin-bottom: var(--space-4);
         color: var(--color-text-primary);
+    }
+
+    .measurements-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--space-4);
+        margin-bottom: var(--space-4);
+        flex-wrap: wrap;
+    }
+
+    .measurements-actions {
+        display: flex;
+        gap: var(--space-2);
+        align-items: center;
+        margin-left: auto;
+        flex-wrap: wrap;
+    }
+
+    .selection-count {
+        font-size: var(--font-size-sm);
+        color: var(--color-text-secondary);
     }
     
     .measurements-table {
@@ -309,29 +394,6 @@
         font-size: 3rem;
         margin-bottom: var(--space-4);
     }
-    
-    .usage-example {
-        background: var(--color-bg-secondary);
-        padding: var(--space-4);
-        border-radius: var(--radius-md);
-        margin-top: var(--space-4);
-    }
-    
-    .usage-example h4 {
-        margin-bottom: var(--space-2);
-        color: var(--color-text-primary);
-    }
-    
-    .code-block {
-        background: #1e1e1e;
-        color: #d4d4d4;
-        padding: var(--space-3);
-        border-radius: var(--radius-sm);
-        font-family: monospace;
-        font-size: var(--font-size-sm);
-        overflow-x: auto;
-        white-space: pre;
-    }
 
     .offline-notice {
         background: #fff3cd;
@@ -357,6 +419,54 @@
     .status-offline {
         background: #fff3cd;
         color: #856404;
+    }
+
+    /* Pagination */
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: var(--space-2);
+        margin-top: var(--space-4);
+        flex-wrap: wrap;
+    }
+
+    .pagination-info {
+        font-size: var(--font-size-sm);
+        color: var(--color-text-secondary);
+    }
+
+    .btn-pagination {
+        padding: var(--space-2) var(--space-3);
+        font-size: var(--font-size-sm);
+    }
+
+    .btn-pagination:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .checkbox-cell {
+        width: 56px;
+        text-align: center;
+    }
+
+    .measurement-checkbox {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
+
+    .btn-danger {
+        background: #dc3545;
+        color: white;
+    }
+
+    .btn-danger:disabled,
+    .btn-secondary:disabled,
+    .btn-primary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
     }
 </style>
 
@@ -400,8 +510,8 @@
             
             <div class="sensor-details">
                 <div class="detail-item">
-                    <span class="detail-label">📍 Lokácia</span>
-                    <span class="detail-value">{sensor.location || 'Bez lokácie'}</span>
+                    <span class="detail-label">📏 Výška Nádrže</span>
+                    <span class="detail-value">{sensor.tankHeight} cm</span>
                 </div>
                 <div class="detail-item">
                     <span class="detail-label">🔧 Typ</span>
@@ -436,23 +546,46 @@
                         <span class="api-key-hidden">••••••••••••••••••••••••••••••••</span>
                     {/if}
                 </div>
-                
-                <div class="usage-example">
-                    <h4>Príklad použitia (ESP32/Arduino):</h4>
-                    <div class="code-block">POST http://localhost:5000/api/measurements
-Headers:
-  Content-Type: application/json
-  x-api-key: {showApiKey ? sensor.apiKey : 'YOUR_API_KEY'}
+            </div>
 
-Body:
-  {`{ "value": 24.5 }`}</div>
+            <div class="api-key-section">
+                <div class="api-key-header">
+                    <span class="api-key-label">🔌 MAC Adresa</span>
+                    <div class="api-key-actions">
+                        <button class="btn btn-small btn-secondary" on:click={() => showMacAddress = !showMacAddress}>
+                            {showMacAddress ? '👁️ Skryť' : '👁️ Zobraziť'}
+                        </button>
+                            <button class="btn btn-small btn-secondary" on:click={copyMacAddress}>
+                                📋 Kopírovať
+                        </button>
+                    </div>
+                </div>
+                <div class="api-key-value">
+                    {#if showMacAddress}
+                        {sensor.macAddress}
+                    {:else}
+                        <span class="api-key-hidden">••••••••••••••••••••••••••••••••</span>
+                    {/if}
                 </div>
             </div>
         </div>
         
         <!-- Measurements Section -->
         <div class="measurements-section">
-            <h2 class="section-title">📊 Merania</h2>
+            <div class="measurements-header">
+                <h2 class="section-title">📊 Merania (Posledných {measurementsPerPage})</h2>
+                {#if !offline && measurements.length > 0}
+                    <div class="measurements-actions">
+                        <span class="selection-count">Zvolené: {selectedMeasurementIds.length}</span>
+                        <button class="btn btn-secondary" on:click={toggleSelectAllMeasurements} disabled={deletingMeasurements}>
+                            {allVisibleMeasurementsSelected ? 'Zrušiť výber všetkých' : 'Zvoliť všetky'}
+                        </button>
+                        <button class="btn btn-danger" on:click={handleDeleteSelectedMeasurements} disabled={selectedMeasurementIds.length === 0 || deletingMeasurements}>
+                            {deletingMeasurements ? 'Mažem...' : 'Vymazať všetky zvolené'}
+                        </button>
+                    </div>
+                {/if}
+            </div>
             
             {#if measurements.length === 0}
                 <div class="empty-state">
@@ -464,6 +597,9 @@ Body:
                 <table class="measurements-table">
                     <thead>
                         <tr>
+                            {#if !offline}
+                                <th class="checkbox-cell">Výber</th>
+                            {/if}
                             <th>Hodnota</th>
                             <th>Čas merania</th>
                         </tr>
@@ -471,6 +607,18 @@ Body:
                     <tbody>
                         {#each measurements as measurement (measurement._id)}
                             <tr>
+                                {#if !offline}
+                                    <td class="checkbox-cell">
+                                        <input
+                                            class="measurement-checkbox"
+                                            type="checkbox"
+                                            checked={selectedMeasurementIds.includes(measurement._id)}
+                                            on:change={() => toggleMeasurementSelection(measurement._id)}
+                                            disabled={deletingMeasurements}
+                                            aria-label={`Vybrať meranie z ${formatDate(measurement.timestamp)}`}
+                                        />
+                                    </td>
+                                {/if}
                                 <td>
                                     <span class="measurement-value">
                                         {measurement.value} {getSensorUnit(sensor.type)}
@@ -481,6 +629,28 @@ Body:
                         {/each}
                     </tbody>
                 </table>
+
+                {#if totalPages > 1}
+                    <div class="pagination">
+                        <button 
+                            class="btn btn-secondary btn-pagination" 
+                            on:click={() => goToPage(currentPage - 1)}
+                            disabled={currentPage === 1 || loading}
+                        >
+                            ← Predchádzajúca
+                        </button>
+                        <span class="pagination-info">
+                            Strana {currentPage} z {totalPages} (spolu {totalMeasurements} meraní)
+                        </span>
+                        <button 
+                            class="btn btn-secondary btn-pagination" 
+                            on:click={() => goToPage(currentPage + 1)}
+                            disabled={currentPage === totalPages || loading}
+                        >
+                            Ďalšia →
+                        </button>
+                    </div>
+                {/if}
             {/if}
         </div>
     {/if}

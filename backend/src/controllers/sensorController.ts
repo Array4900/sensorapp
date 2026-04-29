@@ -5,6 +5,8 @@ import { UserRole } from '../utils/roleEnum.js';
 import crypto from 'crypto';
 import QRCode from 'qrcode';
 
+import { SensorType } from '../utils/sensorTypes.js';
+
 interface AuthRequest extends Request {
     user?: { username: string; role: string };
 }
@@ -14,6 +16,23 @@ function generateApiKey(): string {
     return 'sk_' + crypto.randomBytes(24).toString('hex');
 }
 
+export const getSensorTypes = async (_req: AuthRequest, res: Response) => {
+    try {
+        return res.status(200).json({
+            sensorTypes: [
+                {
+                    id: SensorType.ULTRASONIC_AJ_SR04M_GEN1,
+                    label: 'Ultrazvukový hladinomer AJ_SR04 (Gen 1)',
+                    params: ['tankHeight']
+                }
+            ]
+        });
+    } catch (error) {
+        console.error('Error fetching sensor types:', error);
+        return res.status(500).json({ message: 'Internal server error', error });
+    }
+};
+
 export const createSensor = async (req: AuthRequest, res: Response) => {
     try {
         // Iba admin môže vytvoriť senzor
@@ -21,10 +40,32 @@ export const createSensor = async (req: AuthRequest, res: Response) => {
             return res.status(403).json({ message: 'Iba administrátor môže vytvoriť senzor.' });
         }
 
-        const { name, location, owner } = req.body;
+        const { name, macAddress, owner, type, tankHeight } = req.body;
+
 
         if (!name) {
             return res.status(400).json({ message: 'Názov senzora je povinný.' });
+        }
+
+        if (!macAddress) {
+            return res.status(400).json({ message: 'MAC adresa senzora je povinná.' });
+        } else if (!/^([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})$/.test(macAddress)) {
+            return res.status(400).json({ message: 'Neplatný formát MAC adresy. Očakáva sa formát XX:XX:XX:XX:XX:XX.' });
+        } 
+
+        if (!Object.values(SensorType).includes(type)) {
+            return res.status(400).json({ message: 'Neplatný typ senzora.' });
+        }
+
+        if (type === SensorType.ULTRASONIC_AJ_SR04M_GEN1) {
+            if (tankHeight === undefined || tankHeight === null || Number.isNaN(Number(tankHeight))) {
+                return res.status(400).json({ message: 'Výška nádrže je pri tomto senzore povinná.' });
+            }
+
+            if (Number(tankHeight) <= 0) {
+                return res.status(400).json({ message: 'Výška nádrže musí byť väčšia ako 0.' });
+            }
+
         }
 
         const apiKey = generateApiKey();
@@ -34,8 +75,9 @@ export const createSensor = async (req: AuthRequest, res: Response) => {
 
         const newSensor = new Sensor({
             name,
-            location: location || '',
-            type: 'HladinomerESP',
+            macAddress,
+            type,
+            tankHeight: Number(tankHeight),
             owner: owner || req.user?.username,
             apiKey,
             qrCode
@@ -87,7 +129,7 @@ export const getSensorById = async (req: AuthRequest, res: Response) => {
 export const updateSensor = async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;
-        const { name, location, isActive } = req.body;
+        const { name, tankHeight, isActive } = req.body;
 
         // First check ownership
         const existingSensor = await Sensor.findById(id);
@@ -99,9 +141,13 @@ export const updateSensor = async (req: AuthRequest, res: Response) => {
             return res.status(403).json({ message: 'Access denied' });
         }
 
-        const updateData: any = { name, isActive };
-        if (location !== undefined) {
-            updateData.location = location || '';
+        if (Number(tankHeight) <= 0) {
+            return res.status(400).json({ message: 'Výška nádrže musí byť väčšia ako 0.' });
+        }   
+
+        const updateData: any = { name, tankHeight, isActive };
+        if (tankHeight !== undefined) {
+            updateData.tankHeight = tankHeight;
         }
 
         const sensor = await Sensor.findByIdAndUpdate(
@@ -128,7 +174,7 @@ export const deleteSensor = async (req: AuthRequest, res: Response) => {
             return res.status(404).json({ message: 'Sensor not found' });
         }
 
-        if (req.user?.role !== UserRole.ADMIN && existingSensor.owner !== req.user?.username) {
+        if (existingSensor.owner !== req.user?.username) {
             return res.status(403).json({ message: 'Access denied' });
         }
 
@@ -155,15 +201,62 @@ export const getSensorMeasurements = async (req: AuthRequest, res: Response) => 
             return res.status(404).json({ message: 'Sensor not found' });
         }
 
-        // Check ownership (unless admin)
+        // Check ownership
         if (req.user?.role !== UserRole.ADMIN && sensor.owner !== req.user?.username) {
             return res.status(403).json({ message: 'Access denied' });
         }
 
-        const measurements = await Measurement.find({ sensor: id }).sort({ timestamp: -1 });
-        return res.status(200).json({ measurements });
+        const page = Math.max(Number.parseInt(String(req.query.page || '1'), 10) || 1, 1);
+        const limit = Math.max(Number.parseInt(String(req.query.limit || '20'), 10) || 20, 1);
+        const skip = (page - 1) * limit;
+
+        const [measurements, total] = await Promise.all([
+            Measurement.find({ sensor: id }).sort({ timestamp: -1 }).skip(skip).limit(limit),
+            Measurement.countDocuments({ sensor: id })
+        ]);
+
+        return res.status(200).json({ measurements, total, page, limit });
     } catch (error) {
         console.error('Error fetching measurements:', error);
+        return res.status(500).json({ message: 'Internal server error', error });
+    }
+};
+
+export const deleteSensorMeasurements = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { measurementIds } = req.body as { measurementIds?: string[] };
+
+        if (!Array.isArray(measurementIds) || measurementIds.length === 0) {
+            return res.status(400).json({ message: 'Aspoň jedno ID merania je povinné.' });
+        }
+
+        const sensor = await Sensor.findById(id);
+        if (!sensor) {
+            return res.status(404).json({ message: 'Sensor not found' });
+        }
+
+        if (req.user?.role !== UserRole.ADMIN && sensor.owner !== req.user?.username) {
+            return res.status(403).json({ message: 'Access denied' });
+        }
+
+        const uniqueMeasurementIds = [...new Set(measurementIds.filter((value) => typeof value === 'string' && value.trim().length > 0))];
+
+        if (uniqueMeasurementIds.length === 0) {
+            return res.status(400).json({ message: 'Aspoň jedno platné ID merania je povinné.' });
+        }
+
+        const result = await Measurement.deleteMany({
+            _id: { $in: uniqueMeasurementIds },
+            sensor: id
+        });
+
+        return res.status(200).json({
+            message: 'Merania boli úspešne vymazané.',
+            deletedCount: result.deletedCount || 0
+        });
+    } catch (error) {
+        console.error('Error deleting measurements:', error);
         return res.status(500).json({ message: 'Internal server error', error });
     }
 };

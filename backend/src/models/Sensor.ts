@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { SensorType } from "../utils/sensorTypes.js";
 
 const sensorSchema = new mongoose.Schema(
     {
@@ -6,19 +7,24 @@ const sensorSchema = new mongoose.Schema(
             type: String,
             required: true
         },
-        location: {
-            type: String,
-            required: false,
-            default: ''
-        },
         type: {
             type: String,
             required: true,
-            default: 'HladinomerESP'
+            enum: Object.values(SensorType),
+            default: SensorType.ULTRASONIC_AJ_SR04M_GEN1,
+        },
+        tankHeight: {
+            type: Number,
+            required: true,
         },
         owner: {
             type: String,
             required: true
+        },
+        macAddress: {
+            type: String,
+            required: true,
+            unique: true
         },
         // Unikatny API kluc pre senzor, aby sa zabranilo neautorizovanemu
         // pridavaniu merani.

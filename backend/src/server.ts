@@ -44,7 +44,7 @@ app.options(/.*/, cors(corsOptions));
 dotenv.config();
 console.log("Moja URI:", process.env.MONGO_URI);
 console.log("Moja PORT:", process.env.PORT);
-console.log("DEBUG: Používam secret:", process.env.JWT_SECRET ? "Kľúč načítaný" : "KĽÚČ CHÝBA (UNDEFINED)!");
+console.log(process.env.JWT_SECRET ? "Kľúč JWT načítaný" : "KĽÚČ JWT CHÝBA (UNDEFINED)!");
 configurePushNotifications();
 app.use(express.json());
 
@@ -73,11 +73,11 @@ app.use('/api/push', pushRoutes);
 
 
 // ============================================
-// MQTT Subscription - sensor/merania
+// MQTT Subscription - pre AJ_SR04M to bude sensor/+/ULTRASONIC_AJ_SR04M_GEN1
 // ============================================
 const MQTT_BROKER: string = process.env.MQTT_BROKER_URL as string;
 const MQTT_TOPIC: string = process.env.MQTT_TOPIC as string;
-const MQTT_TOPIC_ACK_PREFIX = 'sensor/ack/';  // + apiKey
+const MQTT_TOPIC_ACK_PREFIX = 'sensor/+/ack/';  // + apiKey
 
 const MQTT_OPTIONS = {
     username: process.env.MQTT_USER,
@@ -101,64 +101,44 @@ mqttClient.on('connect', () => {
 });
 
 mqttClient.on('message', async (topic: string, message: Buffer) => {
-    console.log(`📩 DEBUG: Prišla správa na topic [${topic}] s obsahom: ${message.toString()}`);
-    // ── Merania ──
-    if (topic === MQTT_TOPIC) {
-        try {
-            const payload = JSON.parse(message.toString());
-            const { apiKey, distance } = payload;
+    // Toto sa vypíše VŽDY, keď príde správa
+    console.log(`📩 DEBUG: Prišla správa na topic [${topic}]`);
+    
+    const parts = topic.split('/');
+    const macFromTopic = parts[1];
 
-            if (!apiKey || distance === undefined) {
-                console.warn('MQTT: Neplatná správa - chýba apiKey alebo distance:', payload);
-                return;
-            }
+    try {
+        const payload = JSON.parse(message.toString());
+        const { apiKey, distance, temperatureC } = payload;
 
-            const sensor = await Sensor.findOne({ apiKey });
-            if (!sensor) {
-                console.warn('MQTT: Neplatný API kľúč:', apiKey);
-                return;
-            }
-
-            const distanceCm = parseFloat(distance);
-            if (Number.isNaN(distanceCm)) {
-                console.warn('MQTT: distance nie je číslo:', payload);
-                return;
-            }
-
-            if (distanceCm < 21 || distanceCm > 580) {
-                console.warn(`MQTT: Meranie mimo povoleného rozsahu bolo zamietnuté (${distanceCm} cm) pre senzor ${sensor.name}`);
-                mqttClient.publish(`${MQTT_TOPIC_ACK_PREFIX}${apiKey}`, JSON.stringify({
-                    status: 'rejected',
-                    message: 'Meranie je mimo povoleného rozsahu 21-580 cm'
-                }));
-                return;
-            }
-
-            const newMeasurement = new Measurement({
-                sensor: sensor._id,
-                value: distanceCm,
-                unit: 'cm',
-                timestamp: new Date()
-            });
-
-            await newMeasurement.save();
-            console.log(`MQTT: Meranie uložené - senzor: ${sensor.name}, vzdialenosť: ${distance} cm`);
-
-            try {
-                await handleThresholdNotification(sensor, distanceCm);
-            } catch (notificationError) {
-                console.error(`MQTT: Prahová notifikácia zlyhala pre senzor ${sensor.name}:`, notificationError);
-            }
-
-            // Odošli ACK späť na topic sensor/ack/<apiKey>
-            mqttClient.publish(`${MQTT_TOPIC_ACK_PREFIX}${apiKey}`, JSON.stringify({
-                status: 'ok',
-                message: 'Meranie uložené'
-            }));
-            console.log(`MQTT: ACK odoslaný pre senzor "${sensor.name}"`);
-        } catch (err) {
-            console.error('MQTT: Chyba pri spracovaní správy:', err);
+        // Validácia existencie senzora
+        const sensor = await Sensor.findOne({ apiKey: apiKey, macAddress: macFromTopic });
+        
+        if (!sensor) {
+            console.warn(`!! MQTT: Neznámy senzor (Kľúč: ${apiKey}, MAC: ${macFromTopic})`);
+            return;
         }
+
+        const distanceCm = parseFloat(distance);
+        
+
+        const newMeasurement = new Measurement({
+            sensor: sensor._id,
+            value: distanceCm,
+            unit: 'cm',
+            temperatureC: temperatureC,
+            timestamp: new Date()
+        });
+
+        await newMeasurement.save();
+        console.log(`✅ MQTT: Meranie uložené pre ${sensor.name}: ${distanceCm} cm`);
+
+        // ACK posielajte na statický topic bez pluska
+        const ackTopic = `sensor/${macFromTopic}/ack`;
+        mqttClient.publish(ackTopic, JSON.stringify({ status: 'ok' }));
+
+    } catch (err) {
+        console.error('MQTT: Chyba spracovania JSONu:', err);
     }
 });
 

@@ -46,10 +46,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # Prehliadač teraz volá verejnú Cloudflare adresu - produkcia
-      - PUBLIC_API_URL=https://api.sahur.sk/api
-      # Pre testovanie a vývoj, keď beží všetko lokálne, môžeme použiť internú Docker sieť
-      #- PUBLIC_API_URL=http://localhost:5000/api
+      # URL cez ktoru vola prehliadac backend (pre produkciu cez Cloudflare tunel, pre testovanie a vývoj cez Docker sieť)
+      - PUBLIC_API_URL=${PUBLIC_API_URL}
 
       - PUBLIC_VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
       # SvelteKit server (SSR) stále volá backend interne cez Docker sieť
@@ -78,6 +76,8 @@ services:
     container_name: cloudflared-tunnel
     image: cloudflare/cloudflared:latest
     restart: always
+    profiles:
+      - prod
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
     command: tunnel run

@@ -34,12 +34,14 @@ async function readErrorMessage(response: Response, fallback: string): Promise<s
 export interface Sensor {
     _id: string;
     name: string;
-    location: string;
+    macAddress: string;
     type: string;
     owner: string;
+    tankHeight: number;
     apiKey: string;
     qrCode: string;
     isActive: boolean;
+    lastMeasurement?: string;
     createdAt: string;
     updatedAt: string;
 }
@@ -63,13 +65,21 @@ export interface User {
 
 export interface CreateSensorData {
     name: string;
-    location?: string;
+    macAddress: string;
+    type: string;
+    tankHeight: number;
     owner?: string;
+}
+
+export interface SensorTypeDefinition {
+    id: string;
+    label: string;
+    params: string[];
 }
 
 export interface UpdateSensorData {
     name?: string;
-    location?: string;
+    tankHeight?: number;
     isActive?: boolean;
 }
 
@@ -105,6 +115,15 @@ export async function getSensors(): Promise<Sensor[]> {
     }
     const data = await response.json();
     return data.sensors;
+}
+
+export async function getSensorTypes(): Promise<SensorTypeDefinition[]> {
+    const response = await authFetch('/sensors/types');
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Nepodarilo sa načítať typy senzorov'));
+    }
+    const data = await response.json();
+    return data.sensorTypes;
 }
 
 export async function getSensorById(id: string): Promise<Sensor> {
@@ -157,6 +176,27 @@ export async function getSensorMeasurements(sensorId: string): Promise<Measureme
     }
     const data = await response.json();
     return data.measurements;
+}
+
+export async function getSensorMeasurementsPage(sensorId: string, page: number = 1, limit: number = 20): Promise<{ measurements: Measurement[], total: number, page: number }> {
+    const response = await authFetch(`/sensors/${sensorId}/measurements?page=${page}&limit=${limit}`);
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Nepodarilo sa načítať merania'));
+    }
+    const data = await response.json();
+    return data;
+}
+
+export async function deleteMeasurements(sensorId: string, measurementIds: string[]): Promise<{ deletedCount: number }> {
+    const response = await authFetch(`/sensors/${sensorId}/measurements`, {
+        method: 'DELETE',
+        body: JSON.stringify({ measurementIds })
+    });
+    if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Nepodarilo sa vymazať merania'));
+    }
+
+    return response.json();
 }
 
 // ============================================
