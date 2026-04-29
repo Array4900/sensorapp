@@ -2,6 +2,7 @@ import express from "express";
 import connectToDatabase from './config/db.js';
 import cors from 'cors';
 import dotenv from "dotenv";
+import helmet from 'helmet';
 import mqtt from 'mqtt';
 
 import authRoutes from './routes/authRoute.js';
@@ -12,13 +13,26 @@ import pushRoutes from './routes/pushRoutes.js';
 import { startTokenCleanupScheduler } from './utils/tokenBlacklist.js';
 import { configurePushNotifications } from './utils/pushNotifications.js';
 import { handleThresholdNotification, startDailySensorNotificationScheduler } from './utils/sensorNotifications.js';
+import { getRequiredEnv } from './utils/env.js';
 import Sensor from './models/Sensor.js';
 import Measurement from './models/Measurement.js';
+
+dotenv.config();
+
+const port = Number.parseInt(process.env.PORT || '5000', 10);
+
+if (!Number.isFinite(port)) {
+    throw new Error('PORT must be a valid number.');
+}
+
+getRequiredEnv('JWT_SECRET');
+getRequiredEnv('MONGO_URI');
 
 const allowedOrigins = new Set([
     'https://sahur.sk',
     'https://www.sahur.sk',
     'https://api.sahur.sk',
+    'http://127.0.0.1:3000',
     'http://localhost:3000'
 ]);
 
@@ -38,15 +52,14 @@ const corsOptions: cors.CorsOptions = {
 };
 
 const app = express();
+app.set('trust proxy', true);
+app.disable('x-powered-by');
+app.use(helmet());
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
-
-dotenv.config();
-console.log("Moja URI:", process.env.MONGO_URI);
-console.log("Moja PORT:", process.env.PORT);
-console.log(process.env.JWT_SECRET ? "Kľúč JWT načítaný" : "KĽÚČ JWT CHÝBA (UNDEFINED)!");
 configurePushNotifications();
-app.use(express.json());
+app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: false, limit: '20kb' }));
 
 try {
     await connectToDatabase();
@@ -55,7 +68,6 @@ try {
     startTokenCleanupScheduler();
     startDailySensorNotificationScheduler();
 
-    let port = parseInt(process.env.PORT as string, 10);
     app.listen( port , '0.0.0.0',() => {
         console.log("Server running on port " + port);
     });

@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { isTokenBlacklisted } from '../utils/tokenBlacklist.js';
+import { getRequiredEnv } from '../utils/env.js';
 
 export interface AuthRequest extends Request {
     user?: { username: string; role: string };
@@ -22,7 +23,7 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
     }
 
     try {
-        const secret = process.env.JWT_SECRET as string; // TREBA MAT NASTAVENE V ENV
+        const secret = getRequiredEnv('JWT_SECRET');
         const decoded = jwt.verify(token, secret) as { username: string; role: string };
         req.user = decoded;
         next();

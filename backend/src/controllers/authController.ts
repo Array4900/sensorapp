@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import User from "../models/User.js";
 import { UserRole } from "../utils/roleEnum.js";
 import { blacklistToken } from "../utils/tokenBlacklist.js";
+import { getRequiredEnv } from '../utils/env.js';
 
 interface AuthRequest extends Request {
     user?: { username: string; role: string };
@@ -86,7 +87,7 @@ export const loginUser = async (req: Request, res: Response) => {
         }
 
         // Vygeneruj JWT token
-        const secret = process.env.JWT_SECRET || 'supersecret123';
+        const secret = getRequiredEnv('JWT_SECRET');
         const token = jwt.sign(
             { username: user.username, role: user.role },
             secret,
@@ -114,7 +115,6 @@ export const loginUser = async (req: Request, res: Response) => {
 export const changePassword = async (req: AuthRequest, res: Response) => {
     try {
         const { username } = req.user || {};
-        console.log("Changing password for user:", username);
         const { oldPassword, newPassword } = req.body;
         // nájdi užívateľa v DB podľa username
         const user = await User.findOne({ username });
@@ -179,7 +179,7 @@ export const logoutUser = async (req: Request, res: Response) => {
             return res.status(400).json({ message: "No token provided" });
         }
 
-        const secret = process.env.JWT_SECRET || 'supersecret123';
+        const secret = getRequiredEnv('JWT_SECRET');
         
         try {
             // Decode the token to get expiration time

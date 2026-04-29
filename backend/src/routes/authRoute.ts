@@ -1,6 +1,7 @@
 import express from 'express';
 import { registerUser, loginUser, changePassword, verifyToken, logoutUser } from '../controllers/authController.js';
 import { authenticateToken } from '../middleware/authMiddleware.js';
+import { authMutationRateLimiter, loginRateLimiter } from '../middleware/rateLimitMiddleware.js';
 
 const router = express.Router();
 
@@ -16,7 +17,7 @@ router.post('/register', async (req, res) => {
     }
 });
 // read
-router.post('/login', async (req, res) => {
+router.post('/login', loginRateLimiter, async (req, res) => {
     try {
         await loginUser(req, res);
     } catch (error) {
@@ -34,7 +35,7 @@ router.post('/verify', authenticateToken, async (req, res) => {
 });
 
 // update
-router.post('/changePassword', authenticateToken, async (req, res) => {
+router.post('/changePassword', authMutationRateLimiter, authenticateToken, async (req, res) => {
     try {
         await changePassword(req, res);
     } catch (error) {
@@ -43,7 +44,7 @@ router.post('/changePassword', authenticateToken, async (req, res) => {
 });
 
 // logout - invalidate token
-router.post('/logout', async (req, res) => {
+router.post('/logout', authMutationRateLimiter, authenticateToken, async (req, res) => {
     try {
         await logoutUser(req, res);
     } catch (error) {
